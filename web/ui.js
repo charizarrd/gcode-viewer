@@ -69,9 +69,9 @@ function onGCodeLoaded(gcode) {
       gr = new GCodeRenderer();
 
       var gcodeObj = gr.render(gm);
-      guiControllers.gcodeIndex.max(gr.viewModels.length - 1);
-      guiControllers.gcodeIndex.setValue(0);
-      guiControllers.animate.setValue(true);
+      // guiControllers.gcodeIndex.max(gr.viewModels.length - 1);
+      // guiControllers.gcodeIndex.setValue(0);
+      // guiControllers.animate.setValue(false);
 
 
 
@@ -101,6 +101,10 @@ function onGCodeLoaded(gcode) {
 
   object = gcodeObj;
 
+  // reset gcodeindex slider to proper max
+  guiControllers.gcodeIndex.__max = gr.viewModels.length-1;
+  guiControllers.layerIndex.__max = gr.layerIndex;
+
   scene.add(object);
 }
 
@@ -111,10 +115,10 @@ $(function() {
   //   return;
   // }
 
-  if (!Modernizr.localstorage) {
-    alert("This app uses local storage to save settings, but your browser doesn't support it.\n\nGet the latest Chrome or FireFox.");
-    return;
-  }
+  // if (!Modernizr.localstorage) {
+  //   alert("This app uses local storage to save settings, but your browser doesn't support it.\n\nGet the latest Chrome or FireFox.");
+  //   return;
+  // }
 
   // Show 'About' dialog for first time visits.
   if (!localStorage.getItem(config.notFirstVisitKey)) {
@@ -150,9 +154,10 @@ $(function() {
   var lastImported = localStorage.getItem(config.lastImportedKey);
   if (lastImported) {
     GCodeImporter.importText(lastImported, onGCodeLoaded);
-  } else {
-    GCodeImporter.importPath(config.defaultFilePath, onGCodeLoaded);
   }
+  // else {
+  //   GCodeImporter.importPath(config.defaultFilePath, onGCodeLoaded);
+  // }
 
   setupGui();
 });
@@ -160,7 +165,8 @@ $(function() {
 
 var guiControllers = {
   gcodeIndex: undefined,
-  animate: undefined
+  layerIndex: undefined,
+  // animate: undefined
 };
 function setupGui() {
 
@@ -172,23 +178,30 @@ function setupGui() {
 
   effectController = {
 
-    gcodeIndex:   10,
-    animate: false,
-    speed: 0,
-    color: [ 0, 128, 255 ],
+    gcodeIndex:   0,
+    layerIndex: 0,
+    updateLayer: false,
+    updateGcodeIndex: false,
 
   };
 
-  guiControllers.gcodeIndex = gui.add(effectController, "gcodeIndex", 0, 1000, 1000).listen();
-  guiControllers.animate = gui.add(effectController, 'animate').listen();
+  guiControllers.gcodeIndex = gui.add(effectController, "gcodeIndex", 0, 1000).step(1).listen();
+  guiControllers.layerIndex = gui.add(effectController, "layerIndex", 0, 10).step(1).listen();
+  // guiControllers.animate = gui.add(effectController, 'animate').listen();
   // gui.add(effectController, 'speed', { Slow: 1, Normal: 2, Fast: 5 }, "Normal" );
   // gui.addColor(effectController, 'color');
 
 
   guiControllers.gcodeIndex.onChange(function(value) {
-    if(effectController.animate) {
-      guiControllers.animate.setValue(false);
-    }
+    effectController.updateLayer = false;
+    effectController.updateGcodeIndex = true;
   });
+
+  guiControllers.layerIndex.onChange(function(value) {
+    effectController.updateLayer = true;
+    effectController.updateGcodeIndex = false;
+  });
+
+
 };
 

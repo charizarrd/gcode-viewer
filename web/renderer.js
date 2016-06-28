@@ -16,9 +16,6 @@ function createScene(container) {
 
     var i;
 
-    // container = document.createElement( 'div' );
-    // document.body.appendChild( container );
-
 
     scene = new THREE.Scene();
 
@@ -50,22 +47,23 @@ function createScene(container) {
     scene.add(camera);
 
     controls = new THREE.TrackballControls( camera );
-    controls.dynamicDampingFactor = 0.1;
     controls.rotateSpeed = 1.0;
+    controls.noZoom = false;
+    controls.noPan = false;
 
 
-    var renderModel = new THREE.RenderPass( scene, camera );
-    var effectBloom = new THREE.BloomPass( 0.4 );
-    var effectScreen = new THREE.ShaderPass( THREE.ShaderExtras[ "screen" ] );
+    // var renderModel = new THREE.RenderPass( scene, camera );
+    // var effectBloom = new THREE.BloomPass( 0.4 );
+    // var effectScreen = new THREE.ShaderPass( THREE.ShaderExtras[ "screen" ] );
 
-    effectFXAA = new THREE.ShaderPass( THREE.ShaderExtras[ "fxaa" ] );
-    effectScreen.renderToScreen = true;
+    // effectFXAA = new THREE.ShaderPass( THREE.ShaderExtras[ "fxaa" ] );
+    // effectScreen.renderToScreen = true;
 
-    composer = new THREE.EffectComposer( renderer );
-    composer.addPass( renderModel );
-    composer.addPass( effectFXAA );
-    composer.addPass( effectBloom );
-    composer.addPass( effectScreen );
+    // composer = new THREE.EffectComposer( renderer );
+    // composer.addPass( renderModel );
+    // composer.addPass( effectFXAA );
+    // composer.addPass( effectBloom );
+    // composer.addPass( effectScreen );
 
     setSize(containerWidth, containerHeight);
 
@@ -75,12 +73,13 @@ function createScene(container) {
     }, false );
     window.addEventListener( 'keydown', keydown, false );
 
-    setupStats();
+    // setupStats();
   }
 
   function animate() {
 
-    requestAnimationFrame( animate );
+
+    requestAnimationFrame( animate);
     render();
 
     if(stats) {
@@ -104,24 +103,27 @@ function createScene(container) {
     }
 
     if( effectController && gr ) {
-      if( effectController.animate ) {
-         try {
-          gr.setIndex(gr.index + 1);
-          effectController.gcodeIndex = gr.index;
-        }
-        catch(e) {
-          effectController.animate = false;
-        }
-      }
-      else {
-        gr.setIndex(effectController.gcodeIndex);
+      if (effectController.updateGcodeIndex)
+      {
+        var layerNum = gr.setIndex(effectController.gcodeIndex);
+        effectController.updateGcodeIndex = false;
+
+        if (layerNum !== undefined)
+          effectController.layerIndex = layerNum;
+      } else if (effectController.updateLayer) {
+        var vertexIndex = gr.setLayer(effectController.layerIndex);   
+        effectController.updateLayer = false;
+
+        if (vertexIndex !== undefined)
+          effectController.gcodeIndex = vertexIndex;
       }
     }
 
     controls.update();
 
     renderer.clear();
-    composer.render();
+    // composer.render();
+    renderer.render(scene, camera);
 
   }
 
@@ -132,11 +134,11 @@ function createScene(container) {
 
     renderer.setSize(width, height);
 
-    effectFXAA.uniforms[ 'resolution' ].value.set( 1 / width, 1 / height );
+    // effectFXAA.uniforms[ 'resolution' ].value.set( 1 / width, 1 / height );
 
     controls.handleResize();
 
-    composer.reset();
+    // composer.reset();
 
   }
 
