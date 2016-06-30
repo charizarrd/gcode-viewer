@@ -37,6 +37,6 @@ GCodeImporter.importPath = function(path, callback) {
 }
 
 GCodeImporter.importText = function(gcode, callback) {
-  var gcodeModel = gcode; // TODO: actually get the model
+  var gcodeModel = gcode;
   callback(gcodeModel);
 }

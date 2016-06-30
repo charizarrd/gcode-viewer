@@ -1,42 +1,23 @@
-function GCodeViewModel(code) {
-  this.code = code;
-  this.cmd = code.words[0].letter+code.words[0].value;
-  this.vertexIndex = 0; // corresponding vertex of extrudeGeo
-  this.vertexLength = 0;
-  this.layerNum = 0;
-}
-
 function GCodeRenderer() {
 
   var self = this;
 
   // tracks each command/movement
-  this.viewModels = [];
+  this.gcodes = [];
   this.index = 0;
 
   // tracks layers
-  this.layers = {}; // maps layer num to index of last vertice in extrudeGeo in that layer
+  this.layers = {}; // maps layer num to index of last gcode in that layer
   this.layerIndex = 0;
   this.currentLayerHeight = 0;
 
   this.baseObject = new THREE.Object3D();
 
-  this.motionGeo = new THREE.Geometry();
-  this.motionMat = new THREE.LineBasicMaterial({
-        opacity: 0.8,
-        transparent: true,
-        linewidth: 1,
-        vertexColors: THREE.VertexColors });
-
-  this.extrudeGeo = new THREE.Geometry();
   this.extrudeMat = new THREE.LineBasicMaterial({
         opacity: 0.8,
         transparent: true,
         linewidth: 2,
         vertexColors: THREE.VertexColors });
-
-  // all commands
-  this.allGeo = new THREE.Geometry();
 
   // commands to visualize
   this.visualizeGeo = new THREE.Geometry();
@@ -44,6 +25,8 @@ function GCodeRenderer() {
   // should always be absolute coordinates stored here
   this.lastLine = {x:0, y:0, z:0, e:0, f:0};
   this.relative = false;
+  this.toolNum = 0;
+  this.solenoidOn = false;
 
   // this.renderer = renderer;
   this.bounds = {
@@ -51,53 +34,41 @@ function GCodeRenderer() {
     max: { x:-100000, y:-100000, z:-100000 }
   };
 
-  this.materialHandlers = {
-
-    G0: function(viewModel) {
-      return this.motionMat;
-    },
-    G1: function(viewModel) {
-      return this.extrudeMat;
-    },
-    G2: function(viewModel) {
-      return this.extrudeMat;
-    }
-
-  } // end materialHandlers
-
 };
 
-GCodeRenderer.motionColors = [ new THREE.Color(0x22bb22) ]
-GCodeRenderer.extrudeColors = [
-                             // new THREE.Color(0xffcc66), // canteloupe
-                             new THREE.Color(0x66ccff), // sky
-                             new THREE.Color(0x22bb22), // honeydew
-                             // new THREE.Color(0xff70cf), // carnation
-                             new THREE.Color(0xcc66ff), // lavender
-                             new THREE.Color(0xfffe66), // banana
-                             new THREE.Color(0xff6666) // salmon
-                             // new THREE.Color(0x66ffcc), // spindrift
-                             // new THREE.Color(0x66ff66), // flora
-                           ]
+var green = new THREE.Color(0x22bb22);
+var blue = new THREE.Color(0x66ccff);
 
 GCodeRenderer.prototype.absolute = function(v1, v2) {
     return this.relative ? v1 + v2 : v2;
   }
 
+GCodeRenderer.prototype.updateBounds = function(vert) {
+  var self = this;
+  self.bounds.min.x = Math.min(vert.x, self.bounds.min.x);
+  self.bounds.min.y = Math.min(vert.y, self.bounds.min.y);
+  self.bounds.min.z = Math.min(vert.z, self.bounds.min.z);
+  self.bounds.max.x = Math.max(vert.x, self.bounds.max.x);
+  self.bounds.max.y = Math.max(vert.y, self.bounds.max.y);
+  self.bounds.max.z = Math.max(vert.z, self.bounds.max.z);
+}
+
 GCodeRenderer.prototype.render = function(model) {
   var self = this;
   self.model = model;
 
-  self.model.codes.forEach(function(code) {
+  self.model.codes.forEach(function(code, i) {
     self.renderGCode(code);
   });
 
+  // last layer
+  self.layers[self.layerIndex] = self.gcodes.length-1;
+  self.currentLayerHeight = self.lastLine.z;
+
+  self.setIndex(10);
   self.updateLines();
 
   // Center
-  self.extrudeGeo.computeBoundingBox();
-  self.bounds = self.extrudeGeo.boundingBox;
-
   self.center = new THREE.Vector3(
       self.bounds.min.x + ((self.bounds.max.x - self.bounds.min.x) / 2),
       self.bounds.min.y + ((self.bounds.max.y - self.bounds.min.y) / 2),
@@ -116,32 +87,24 @@ GCodeRenderer.prototype.render = function(model) {
 };
 
 
-/* returns THREE.Object3D */
 GCodeRenderer.prototype.renderGCode = function(code) {
-  var viewModel = new GCodeViewModel(code);
+  this.geometryHandler(code);
 
-  this.geometryHandler(viewModel);
-
-  var materialHandler = this.materialHandlers[viewModel.cmd] || this.materialHandlers['default'];
-  if (materialHandler) {
-    materialHandler(viewModel);
-  }
-
-  if(viewModel.vertexLength > 0) {
-    this.viewModels.push(viewModel);
+  if(code.vertices.length > 0) {
+    this.gcodes.push(code);
   }
 };
 
-GCodeRenderer.prototype.geometryHandler = function(viewModel) {
-  switch(viewModel.cmd) {
+GCodeRenderer.prototype.geometryHandler = function(code) {
+  switch(code.cmd) {
     // moving and/or extruding
     case "G0": case "G1":
-      this.lineHandler(viewModel);
+      this.lineHandler(code);
       break;
 
     // arc
     case "G2": case "G3":
-      this.arcHandler(viewModel);
+      this.arcHandler(code);
       break;
 
     // use absolute coords
@@ -154,19 +117,28 @@ GCodeRenderer.prototype.geometryHandler = function(viewModel) {
       this.relative = true;
       break;
 
+    // switch tool
+    case "T0":
+      self.toolNum = 0;
+      break;
+
+    case "T1":
+      self.toolNum = 1;
+      break;
+
     default:
-      // console.log(viewModel.cmd);
+      // console.log(code.cmd);
       break;
   }
 };
 
-GCodeRenderer.prototype.lineHandler = function(viewModel) {
+GCodeRenderer.prototype.lineHandler = function(code) {
   var self = this;
 
   var newLine = {};
   var extrude = false;
 
-  viewModel.code.words.forEach(function(word) {
+  code.words.forEach(function(word) {
     var p = word.letter.toLowerCase();
     switch(word.letter) {
       case 'X': case 'Y': case 'Z':
@@ -190,44 +162,26 @@ GCodeRenderer.prototype.lineHandler = function(viewModel) {
 
   var p1 = new THREE.Vector3(self.lastLine.x, self.lastLine.y, self.lastLine.z);
   var p2 = new THREE.Vector3(newLine.x, newLine.y, newLine.z);
-  var geometry, color;
+  code.vertices.push(p1);
+  code.vertices.push(p2);
+  self.updateBounds(p2);
 
-  viewModel.vertexIndex = self.allGeo.vertices.length;
-
-  if (extrude) {
-    geometry = self.extrudeGeo;
-    color = GCodeRenderer.extrudeColors[0];
-  } else {
-    geometry = self.motionGeo;
-    color = GCodeRenderer.motionColors[0];
-  }
-
-  geometry.vertices.push(p1);
-  geometry.vertices.push(p2);
-  geometry.colors.push(color);
-  geometry.colors.push(color);
-
-  self.allGeo.vertices.push(p1);
-  self.allGeo.vertices.push(p2);
-  self.allGeo.colors.push(color);
-  self.allGeo.colors.push(color);
-
-  viewModel.vertexLength = self.allGeo.vertices.length - viewModel.vertexIndex;
+  code.extrude = extrude;
 
   // check for new layer
-  if ((extrude) && (newLine.z > self.currentLayerHeight)) {
-    // console.log(newLine.z, self.currentLayerHeight);
-    self.layers[self.layerIndex] = viewModel.vertexIndex;
+  if ((extrude) && (newLine.z != self.currentLayerHeight)) { // to accomodate for retracting/unretracting movement...
+    self.layers[self.layerIndex] = self.gcodes.length-1;
     self.currentLayerHeight = newLine.z;
     self.layerIndex += 1;
   }
-  viewModel.layerNum = self.layerIndex;
+  code.layerNum = self.layerIndex;
 
   self.lastLine = newLine;
 };
 
 GCodeRenderer.prototype.getAngle = function(x, y, centerX, centerY, radius) {
-  var value = Math.max(0, Math.min(1, Number((x - centerX).toFixed(5)) / Math.abs(radius)));
+  // clamp to be within -1 and 1
+  var value = Math.max(-1, Math.min(1, (x - centerX) / Math.abs(radius)));
   var angle = Math.acos(value);
 
   // check which quadrant it's in
@@ -247,7 +201,7 @@ GCodeRenderer.prototype.getAngle = function(x, y, centerX, centerY, radius) {
   return angle;
 };
 
-GCodeRenderer.prototype.arcHandler = function(viewModel) {
+GCodeRenderer.prototype.arcHandler = function(code) {
   var self = this;
 
   var newLine = {};
@@ -256,7 +210,7 @@ GCodeRenderer.prototype.arcHandler = function(viewModel) {
   var currentX = self.lastLine['x'];
   var currentY = self.lastLine['y']
 
-  viewModel.code.words.forEach(function(word) {
+  code.words.forEach(function(word) {
     var p = word.letter.toLowerCase();
     switch(word.letter) {
       case 'X': case 'Y': case 'Z':
@@ -286,7 +240,7 @@ GCodeRenderer.prototype.arcHandler = function(viewModel) {
   var endAngle = self.getAngle(newLine.x, newLine.y, centerX, centerY, radius);
 
   var clockwise = false;
-  if (viewModel.cmd === "G2")
+  if (code.cmd === "G2")
     clockwise = true;
 
   var curve = new THREE.EllipseCurve(
@@ -299,36 +253,26 @@ GCodeRenderer.prototype.arcHandler = function(viewModel) {
   );
 
   var points = curve.getPoints(50);
-  var geometry, color;
-
-  if (extrude) {
-    geometry = self.extrudeGeo;
-    color = GCodeRenderer.extrudeColors[0];
-  } else {
-    geometry = self.motionGeo;
-    color = GCodeRenderer.motionColors[0];
-  }
-
-  viewModel.vertexIndex = self.allGeo.vertices.length;
+  code.extrude = extrude;
 
   var p1 = new THREE.Vector3(self.lastLine.x, self.lastLine.y, self.lastLine.z);
   points.forEach(function(point) {
     var p2 = new THREE.Vector3(point.x, point.y, newLine.z);
-    // console.log(p2);
-    geometry.vertices.push(p1);
-    geometry.vertices.push(p2);
-    geometry.colors.push(color);
-    geometry.colors.push(color);
-
-    self.allGeo.vertices.push(p1);
-    self.allGeo.vertices.push(p2);
-    self.allGeo.colors.push(color);
-    self.allGeo.colors.push(color);
+    code.vertices.push(p1);
+    code.vertices.push(p2);
+    self.updateBounds(p2);
 
     p1 = p2;
   });
 
-  viewModel.vertexLength = self.allGeo.vertices.length - viewModel.vertexIndex;
+  // check for new layer
+  if ((extrude) && (newLine.z > self.currentLayerHeight)) {
+    // console.log(newLine.z, self.currentLayerHeight);
+    self.layers[self.layerIndex] = self.gcodes.length-1;
+    self.currentLayerHeight = newLine.z;
+    self.layerIndex += 1;
+  }
+  code.layerNum = self.layerIndex;
 
   self.lastLine = newLine;
 };
@@ -338,12 +282,14 @@ GCodeRenderer.prototype.updateLines = function() {
   var self = this;
 
   while( self.baseObject.children.length > 0 ) {
+    if (self.baseObject.children[0] instanceof THREE.Line) {
+      self.baseObject.children[0].geometry.dispose();
+      self.baseObject.children[0].material.dispose();
+    }
     self.baseObject.remove(self.baseObject.children[0]);
   }
 
-  // var motionLine = new THREE.Line(this.motionGeo, this.motionMat, THREE.LinePieces);
-  var feedLine = new THREE.Line(this.visualizeGeo, this.extrudeMat, THREE.LinePieces);
-  // self.baseObject.add(motionLine);
+  var feedLine = new THREE.Line(this.visualizeGeo, this.extrudeMat);
   self.baseObject.add(feedLine);
 
 };
@@ -351,56 +297,45 @@ GCodeRenderer.prototype.updateLines = function() {
 GCodeRenderer.prototype.setIndex = function(index) {
   index = Math.floor(index);
   if( this.index == index ) { return; }
-  if( index < 0 || index >= this.viewModels.length ) {
+  if( index < 0 || index >= this.gcodes.length ) {
     throw new Error("invalid index");
   }
 
-  var vm = this.viewModels[index];
-
   var geometry = new THREE.Geometry();
 
-  var vertices = this.allGeo.vertices.slice(0, vm.vertexIndex + vm.vertexLength);
-  vertices.forEach(function(v) {
-    geometry.vertices.push(v);
-  });
-  // Array.prototype.push.apply( this.visualizeGeo.vertices, vertices );
+  for (var i = 0; i < index; i++) {
+    var verts = this.gcodes[i].vertices;
+    var color;
+    if (this.gcodes[i].extrude)
+      color = blue;
+    else
+      color = green;
 
-  var colors = this.allGeo.colors.slice(0, vm.vertexIndex + vm.vertexLength);
-  colors.forEach(function(c) {
-    geometry.colors.push(c);
-  });
-  // Array.prototype.push.apply( this.visualizeGeo.colors, colors );
+    verts.forEach(function(v) {
+      geometry.vertices.push(v);
+      geometry.colors.push(color);
+    });
+  }
 
+  this.visualizeGeo.dispose();
   this.visualizeGeo = geometry;
+  geometry.dispose();
   this.index = index;
   this.updateLines();
 
-  return vm.layerNum;
+  return this.gcodes[index].layerNum;
 };
 
-GCodeRenderer.prototype.setLayer = function(index) {
-  index = Math.floor(index);
+GCodeRenderer.prototype.setLayer = function(layerIndex) {
+  layerIndex = Math.floor(layerIndex);
+
+  var index = this.layers[layerIndex];
   if( this.index == index ) { return; }
-  if( index < 0 || index > this.layerIndex ) {
+  if( index < 0 || index >= this.gcodes.length ) {
     throw new Error("invalid index");
   }
 
-  var vertexIndex = this.layers[index];
-  var geometry = new THREE.Geometry();
+  this.setIndex(index);
 
-  var vertices = this.allGeo.vertices.slice(0, vertexIndex);
-  vertices.forEach(function(v) {
-    geometry.vertices.push(v);
-  });
-
-  var colors = this.allGeo.colors.slice(0, vertexIndex);
-  colors.forEach(function(c) {
-    geometry.colors.push(c);
-  });
-
-  this.visualizeGeo = geometry;
-  this.index = index;
-  this.updateLines();
-
-  return vertexIndex;
+  return index;
 };

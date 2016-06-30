@@ -4,9 +4,7 @@ function createScene(container) {
   var containerWidth  = window.innerWidth || 2, //container.offsetWidth,
       containerHeight = window.innerHeight || 2; //container.offsetHeight;
 
-  var effectFXAA,
-
-      autoRotate = false;
+  var autoRotate = false;
 
 
   init();
@@ -46,24 +44,10 @@ function createScene(container) {
 
     scene.add(camera);
 
-    controls = new THREE.TrackballControls( camera );
+    controls = new THREE.TrackballControls( camera, renderer.domElement);
     controls.rotateSpeed = 1.0;
     controls.noZoom = false;
     controls.noPan = false;
-
-
-    // var renderModel = new THREE.RenderPass( scene, camera );
-    // var effectBloom = new THREE.BloomPass( 0.4 );
-    // var effectScreen = new THREE.ShaderPass( THREE.ShaderExtras[ "screen" ] );
-
-    // effectFXAA = new THREE.ShaderPass( THREE.ShaderExtras[ "fxaa" ] );
-    // effectScreen.renderToScreen = true;
-
-    // composer = new THREE.EffectComposer( renderer );
-    // composer.addPass( renderModel );
-    // composer.addPass( effectFXAA );
-    // composer.addPass( effectBloom );
-    // composer.addPass( effectScreen );
 
     setSize(containerWidth, containerHeight);
 
@@ -73,18 +57,12 @@ function createScene(container) {
     }, false );
     window.addEventListener( 'keydown', keydown, false );
 
-    // setupStats();
   }
 
   function animate() {
-
-
     requestAnimationFrame( animate);
     render();
 
-    if(stats) {
-      stats.update();
-    }
   }
 
   function render() {
@@ -102,27 +80,26 @@ function createScene(container) {
       }
     }
 
-    if( effectController && gr ) {
-      if (effectController.updateGcodeIndex)
+    if( guiParameters && gr ) {
+      if (guiParameters.updateGcodeIndex)
       {
-        var layerNum = gr.setIndex(effectController.gcodeIndex);
-        effectController.updateGcodeIndex = false;
+        var layerNum = gr.setIndex(guiParameters.gcodeIndex);
+        guiParameters.updateGcodeIndex = false;
 
         if (layerNum !== undefined)
-          effectController.layerIndex = layerNum;
-      } else if (effectController.updateLayer) {
-        var vertexIndex = gr.setLayer(effectController.layerIndex);   
-        effectController.updateLayer = false;
+          guiParameters.layerIndex = layerNum;
+      } else if (guiParameters.updateLayer) {
+        var vertexIndex = gr.setLayer(guiParameters.layerIndex);   
+        guiParameters.updateLayer = false;
 
         if (vertexIndex !== undefined)
-          effectController.gcodeIndex = vertexIndex;
+          guiParameters.gcodeIndex = vertexIndex;
       }
     }
 
     controls.update();
 
     renderer.clear();
-    // composer.render();
     renderer.render(scene, camera);
 
   }
@@ -134,11 +111,7 @@ function createScene(container) {
 
     renderer.setSize(width, height);
 
-    // effectFXAA.uniforms[ 'resolution' ].value.set( 1 / width, 1 / height );
-
     controls.handleResize();
-
-    // composer.reset();
 
   }
 
@@ -147,13 +120,6 @@ function createScene(container) {
     if( event.keyCode == 32 ) { // 32 == spacebar
       autoRotate = !autoRotate;
     }
-  }
-
-  function setupStats() {
-    stats = new Stats();
-    stats.domElement.style.position = 'absolute';
-    stats.domElement.style.top = '0px';
-    container.appendChild( stats.domElement );
   }
 
   return scene;

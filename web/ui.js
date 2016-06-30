@@ -1,42 +1,3 @@
-///////////////////////////////////////////////////////////////////////////////
-
-
-
-// gcodeFile = new GCodeFile();
-
-// gcodeFile.codes // doesn't include comments
-// gcodeFile.codesWithComments // includes comments
-// gcodeFile.layers // grouped by z axis (array of z values each with array of xy)
-// gcodeFile.bounds // [minX, maxX, minY, maxY, minZ, maxZ]
-// gcodeFile.plane  // "XY", "XZ", "YZ", undefined (defined if codes contain G17-19)
-// gcodeFile.units  // "mm", "in" (assuming no changes midfile)
-// gcodeFile.extrusion // true if codes contain M101-108 or G1 E
-
-// gcodeFile.codes.forEach(function(gcode) {
-//   gcode.raw // returns the raw line of gcode text used to generate
-//   gcode.code // G0, G1, M3, etc
-//   gcode.params // { X:-3.141, Y:'[8*4]', Z:'#42', A:'acos[0]' }, undefined
-//   gcode.coordinates // undefined (use current), absolute, relative
-
-//   if(gcode.params['Z'] != undefined) {
-//     gcodeFile.layers[gcode['Z']] = gcode;
-//   }
-// });
-
-
-
-// renderer = new GCodeRenderer();
-// renderer.render(gcodeFile)
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-
-// gcode_file = IO
-// gcode_model = new GCodeCollection();
-//
-// gcode_model = (new GcodeParser()).parse(gcode_file)
-// renderer = (new GcodeRenderer(webgl_context))
 
 var config = {
   lastImportedKey: 'last-imported',
@@ -47,7 +8,7 @@ var config = {
 
 var scene = null,
     object = null,
-    effectController,
+    guiParameters,
     stats;
 
 function about() {
@@ -59,16 +20,14 @@ function openDialog() {
 }
 
 
-var gp, gm, gi, gr;
+var gp, gf, gi, gr;
 
 function onGCodeLoaded(gcode) {
       gp = new GCodeParser();
-      gm = gp.parse(gcode);
-      // gi = new GCodeInterpreter();
-      // gi.interpret(gm);
+      gf = gp.parse(gcode);
       gr = new GCodeRenderer();
 
-      var gcodeObj = gr.render(gm);
+      var gcodeObj = gr.render(gf);
       // guiControllers.gcodeIndex.max(gr.viewModels.length - 1);
       // guiControllers.gcodeIndex.setValue(0);
       // guiControllers.animate.setValue(false);
@@ -94,6 +53,13 @@ function onGCodeLoaded(gcode) {
 
   $('#openModal').modal('hide');
   if (object) {
+    object.children.forEach(function(child) {
+      if (child instanceof THREE.Line) {
+        child.geometry.dispose();
+        child.material.dispose();
+      }
+    });
+
     scene.remove(object);
   }
 
@@ -102,8 +68,10 @@ function onGCodeLoaded(gcode) {
   object = gcodeObj;
 
   // reset gcodeindex slider to proper max
-  guiControllers.gcodeIndex.__max = gr.viewModels.length-1;
-  guiControllers.layerIndex.__max = gr.layerIndex;
+  guiControllers.gcodeIndex.max(gr.gcodes.length-1);
+  guiControllers.layerIndex.max(gr.layerIndex);
+  guiControllers.gcodeIndex.updateDisplay();
+  guiControllers.layerIndex.updateDisplay();
 
   scene.add(object);
 }
@@ -176,7 +144,7 @@ function setupGui() {
     event.stopPropagation();
   });
 
-  effectController = {
+  guiParameters = {
 
     gcodeIndex:   0,
     layerIndex: 0,
@@ -185,21 +153,21 @@ function setupGui() {
 
   };
 
-  guiControllers.gcodeIndex = gui.add(effectController, "gcodeIndex", 0, 1000).step(1).listen();
-  guiControllers.layerIndex = gui.add(effectController, "layerIndex", 0, 10).step(1).listen();
-  // guiControllers.animate = gui.add(effectController, 'animate').listen();
-  // gui.add(effectController, 'speed', { Slow: 1, Normal: 2, Fast: 5 }, "Normal" );
-  // gui.addColor(effectController, 'color');
+  guiControllers.gcodeIndex = gui.add(guiParameters, "gcodeIndex").min(0).max(200000).step(1).listen();
+  guiControllers.layerIndex = gui.add(guiParameters, "layerIndex").min(0).max(1000).step(1).listen();
+  // guiControllers.animate = gui.add(guiParameters, 'animate').listen();
+  // gui.add(guiParameters, 'speed', { Slow: 1, Normal: 2, Fast: 5 }, "Normal" );
+  // gui.addColor(guiParameters, 'color');
 
 
   guiControllers.gcodeIndex.onChange(function(value) {
-    effectController.updateLayer = false;
-    effectController.updateGcodeIndex = true;
+    guiParameters.updateLayer = false;
+    guiParameters.updateGcodeIndex = true;
   });
 
   guiControllers.layerIndex.onChange(function(value) {
-    effectController.updateLayer = true;
-    effectController.updateGcodeIndex = false;
+    guiParameters.updateLayer = true;
+    guiParameters.updateGcodeIndex = false;
   });
 
 

@@ -13,18 +13,16 @@ GCodeModel.prototype.toString = function() {
 
 function GCode() {
   this.words = [];
-  this.comments = [];
-  // this.lineNumbers = [];
-  this.index = 0;
+  this.cmd = "";
+  this.layerNum = 0;
+  this.extrude = false;
+  this.vertices = [];
+  this.toolNum = 0;
 };
 
 GCode.prototype.toString = function() {
   var self = this,
       output = "";
-
-  if(self.comments.length > 0) {
-    output = self.comments.join(' ') + "\n";
-  }
 
   self.words.forEach(function(word) {
     output += word.toString() + "\n";

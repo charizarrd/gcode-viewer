@@ -19,10 +19,10 @@ GCodeParser.prototype.parseComments = function(line) {
   }
 
   // Full line parenthesis style comments
-  addComments(line.match(/\((.*)\)$/g, ''));
+  // addComments(line.match(/\((.*)\)$/g, ''));
 
   // Inline parenthesis style comments
-  addComments(line.match(/\((.*?)\)/g, ''));
+  // addComments(line.match(/\((.*?)\)/g, ''));
 
   // Semicolon style comments
   addComments(line.match(/;(.*$)/g, ''));
@@ -64,8 +64,8 @@ GCodeParser.prototype.parseLine = function(line) {
       pLine = new GCode(),
       pWord;
 
-  pLine.comments = self.parseComments(line);
-  pLine.comments.forEach( function(comment) {
+  var comments = self.parseComments(line);
+  comments.forEach( function(comment) {
     // console.log("Removing comment: " +  comment);
     line = line.replace(comment, '');
   });
@@ -98,7 +98,6 @@ GCodeParser.prototype.parseLine = function(line) {
 GCodeParser.prototype.parse = function(gcode) {
   var lines = gcode.split('\n'),
       i = 0,
-      n = 0,
       l = lines.length,
       self = this,
       lineCode,
@@ -111,11 +110,11 @@ GCodeParser.prototype.parse = function(gcode) {
     lineCode.words.forEach(function(word) {
       switch(word.letter) {
         // Detect new code group, add current group to model & start a new group
-        case 'G': case 'M':
+        case 'G': case 'M': case 'T':
           if(current.words.length > 0) {
+            current.cmd = current.words[0].letter+current.words[0].value;
             self.model.codes.push(current);
             current = new GCode();
-            current.index = ++n;
           }
           break;
       }
@@ -124,104 +123,4 @@ GCodeParser.prototype.parse = function(gcode) {
   }
   self.model.codes.push(current);
   return self.model;
-};
-
-// var gp = new GCodeParser();
-// var gm = gp.parse('G1 X79 Y84.9665 Z0.25 F900.0 E5.628');
-// console.log(gm.toString());
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// From Original GCode Viewer code
-
-/**
- * Parses a string of gcode instructions, and invokes handlers for
- * each type of command.
- *
- * Special handler:
- *   'default': Called if no other handler matches.
- */
-function OldGCodeParser(handlers) {
-  this.handlers = handlers || {};
-}
-
-OldGCodeParser.prototype.parseLine = function(text) {
-  text = text.replace(/[;(].*$/, '').trim(); // Remove comments
-  if (text) {
-    var tokens = text.split(' ');
-    if (tokens) {
-      var cmd = tokens[0];
-      var args = {
-        'cmd': cmd
-      };
-      tokens.splice(1).forEach(function(token) {
-        var key = token[0].toLowerCase(),
-            value = parseFloat(token.substring(1));
-        args[key] = value;
-      });
-      var handler = this.handlers[cmd] || this.handlers['default'];
-      if (handler) {
-        return handler(args, text);
-      }
-    }
-  }
-};
-
-OldGCodeParser.prototype.parse = function(gcode) {
-  var lines = gcode.split('\n'),
-      i = 0,
-      l = lines.length;
-  for ( ; i < l; i++) {
-    if (this.parseLine(lines[i]) === false) {
-      break;
-    }
-  }
 };
