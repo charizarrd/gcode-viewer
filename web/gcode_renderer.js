@@ -38,6 +38,7 @@ function GCodeRenderer() {
 
 var green = new THREE.Color(0x22bb22);
 var blue = new THREE.Color(0x66ccff);
+var yellow = new THREE.Color(0xff6666);
 
 GCodeRenderer.prototype.absolute = function(v1, v2) {
     return this.relative ? v1 + v2 : v2;
@@ -65,7 +66,7 @@ GCodeRenderer.prototype.render = function(model) {
   self.layers[self.layerIndex] = self.gcodes.length-1;
   self.currentLayerHeight = self.lastLine.z;
 
-  self.setIndex(10);
+  self.setIndex(1);
   self.updateLines();
 
   // Center
@@ -80,7 +81,7 @@ GCodeRenderer.prototype.render = function(model) {
 
       scale = Math.min(zScale, Math.min(xScale, yScale));
 
-  self.baseObject.position = self.center.multiplyScalar(-scale);
+  // self.baseObject.position = self.center.multiplyScalar(-scale);
   self.baseObject.scale.multiplyScalar(scale);
 
   return self.baseObject;
@@ -99,13 +100,14 @@ GCodeRenderer.prototype.geometryHandler = function(code) {
   switch(code.cmd) {
     // moving and/or extruding
     case "G0": case "G1":
-      this.lineHandler(code);
+    case "G2": case "G3":
+      this.getVertices(code);
       break;
 
     // arc
-    case "G2": case "G3":
-      this.arcHandler(code);
-      break;
+    // case "G2": case "G3":
+    //   this.arcHandler(code);
+    //   break;
 
     // use absolute coords
     case "G90":
@@ -119,11 +121,29 @@ GCodeRenderer.prototype.geometryHandler = function(code) {
 
     // switch tool
     case "T0":
-      self.toolNum = 0;
+      this.toolNum = 0;
       break;
 
     case "T1":
-      self.toolNum = 1;
+      this.toolNum = 1;
+      break;
+
+    // turn solenoid on
+    case "M42":
+      if (code.words[1].raw === "P2") {
+        if (code.words[2].raw === "S255")
+          this.solenoidOn = true;
+        else
+          this.solenoidOn = false;
+      }
+      break;
+
+    case "M380":
+      this.solenoidOn = true;
+      break;
+
+    case "M381":
+      this.solenoidOn = false;
       break;
 
     default:
@@ -132,83 +152,11 @@ GCodeRenderer.prototype.geometryHandler = function(code) {
   }
 };
 
-GCodeRenderer.prototype.lineHandler = function(code) {
+GCodeRenderer.prototype.getVertices = function(code) {
   var self = this;
 
   var newLine = {};
   var extrude = false;
-
-  code.words.forEach(function(word) {
-    var p = word.letter.toLowerCase();
-    switch(word.letter) {
-      case 'X': case 'Y': case 'Z':
-        newLine[p] = self.absolute(self.lastLine[p], parseFloat(word.value));
-        break;
-      case 'E':
-        newLine[p] = parseFloat(word.value);
-        extrude = true;
-        break;
-      case 'F':
-        newLine[p] = parseFloat(word.value);
-        break;
-    }
-  });
-
-  for (var word in self.lastLine) {
-    if (newLine[word] === undefined) {
-      newLine[word] = self.lastLine[word];
-    }
-  }
-
-  var p1 = new THREE.Vector3(self.lastLine.x, self.lastLine.y, self.lastLine.z);
-  var p2 = new THREE.Vector3(newLine.x, newLine.y, newLine.z);
-  code.vertices.push(p1);
-  code.vertices.push(p2);
-  self.updateBounds(p2);
-
-  code.extrude = extrude;
-
-  // check for new layer
-  if ((extrude) && (newLine.z != self.currentLayerHeight)) { // to accomodate for retracting/unretracting movement...
-    self.layers[self.layerIndex] = self.gcodes.length-1;
-    self.currentLayerHeight = newLine.z;
-    self.layerIndex += 1;
-  }
-  code.layerNum = self.layerIndex;
-
-  self.lastLine = newLine;
-};
-
-GCodeRenderer.prototype.getAngle = function(x, y, centerX, centerY, radius) {
-  // clamp to be within -1 and 1
-  var value = Math.max(-1, Math.min(1, (x - centerX) / Math.abs(radius)));
-  var angle = Math.acos(value);
-
-  // check which quadrant it's in
-  if (angle > 0) {
-    if ((y - centerY) < 0) {
-      var diff = Math.PI - angle;
-      angle = Math.PI + diff;
-    }
-  } else {
-    if ((y - centerY) < 0) {
-      angle = Math.PI / 2;
-    } else if ((y - centerY) > 0) {
-      angle = Math.PI * 3/2;
-    }
-  }
-
-  return angle;
-};
-
-GCodeRenderer.prototype.arcHandler = function(code) {
-  var self = this;
-
-  var newLine = {};
-  var extrude = false;
-
-  var currentX = self.lastLine['x'];
-  var currentY = self.lastLine['y']
 
   code.words.forEach(function(word) {
     var p = word.letter.toLowerCase();
@@ -232,42 +180,54 @@ GCodeRenderer.prototype.arcHandler = function(code) {
     }
   }
 
-  var centerX = currentX + newLine.i;
-  var centerY = currentY + newLine.j;
-  var radius = Math.sqrt(Math.pow(newLine.i, 2) + Math.pow(newLine.j, 2));
+  if ((self.toolNum === 1) && (self.solenoidOn)) {
+    extrude = true;
+  }
 
-  var startAngle = self.getAngle(currentX, currentY, centerX, centerY, radius);
-  var endAngle = self.getAngle(newLine.x, newLine.y, centerX, centerY, radius);
-
-  var clockwise = false;
-  if (code.cmd === "G2")
-    clockwise = true;
-
-  var curve = new THREE.EllipseCurve(
-    centerX, centerY,            // aX, aY
-    radius, radius,         // xRadius, yRadius
-    startAngle, endAngle,  // aStartAngle, aEndAngle
-    // 0, startAngle,
-    clockwise,            // aClockwise
-    0                 // aRotation 
-  );
-
-  var points = curve.getPoints(50);
-  code.extrude = extrude;
-
-  var p1 = new THREE.Vector3(self.lastLine.x, self.lastLine.y, self.lastLine.z);
-  points.forEach(function(point) {
-    var p2 = new THREE.Vector3(point.x, point.y, newLine.z);
+  if ((code.cmd === "G0") || (code.cmd === "G1")) {
+    var p1 = new THREE.Vector3(self.lastLine.x, self.lastLine.y, self.lastLine.z);
+    var p2 = new THREE.Vector3(newLine.x, newLine.y, newLine.z);
     code.vertices.push(p1);
     code.vertices.push(p2);
     self.updateBounds(p2);
+  } else {
+    var currentX = self.lastLine['x'];
+    var currentY = self.lastLine['y'];
+    var centerX = currentX + newLine.i;
+    var centerY = currentY + newLine.j;
+    var radius = Math.sqrt(Math.pow(newLine.i, 2) + Math.pow(newLine.j, 2));
 
-    p1 = p2;
-  });
+    var startAngle = self.getAngle(currentX, currentY, centerX, centerY, radius);
+    var endAngle = self.getAngle(newLine.x, newLine.y, centerX, centerY, radius);
+
+    var clockwise = false;
+    if (code.cmd === "G2")
+      clockwise = true;
+
+    var curve = new THREE.EllipseCurve(
+      centerX, centerY,            // aX, aY
+      radius, radius,         // xRadius, yRadius
+      startAngle, endAngle,  // aStartAngle, aEndAngle
+      clockwise,            // aClockwise
+      0                 // aRotation 
+    );
+
+    var points = curve.getPoints(50);
+
+    var p1 = new THREE.Vector3(self.lastLine.x, self.lastLine.y, self.lastLine.z);
+    code.vertices.push(p1);
+    points.forEach(function(point) {
+      var p2 = new THREE.Vector3(point.x, point.y, newLine.z);
+      code.vertices.push(p2);
+      self.updateBounds(p2);
+    });
+  }
+
+  code.extrude = extrude;
+  code.toolNum = self.toolNum;
 
   // check for new layer
-  if ((extrude) && (newLine.z > self.currentLayerHeight)) {
-    // console.log(newLine.z, self.currentLayerHeight);
+  if ((extrude) && (newLine.z != self.currentLayerHeight)) { 
     self.layers[self.layerIndex] = self.gcodes.length-1;
     self.currentLayerHeight = newLine.z;
     self.layerIndex += 1;
@@ -277,6 +237,33 @@ GCodeRenderer.prototype.arcHandler = function(code) {
   self.lastLine = newLine;
 };
 
+GCodeRenderer.prototype.getAngle = function(x, y, centerX, centerY, radius) {
+  // clamp to be within -1 and 1
+  var value = Math.max(-1, Math.min(1, (x - centerX) / Math.abs(radius)));
+  var angle = Math.acos(value);
+
+  // check which quadrant it's in
+  if (angle > 0) {
+    if ((y - centerY) < 0) {
+      var diff = Math.PI - angle;
+      angle = Math.PI + diff;
+    }
+  } else { // angle = 0
+    if ((x - centerX) > 0) {
+      angle = 0;
+    } else if ((x - centerX) < 0) {
+      angle = Math.PI;
+    } else {
+      if ((y - centerY) < 0) {
+        angle = Math.PI * 3/2;
+      } else if ((y - centerY) > 0) {
+        angle = Math.PI/2;
+      }
+    }
+  }
+
+  return angle;
+};
 
 GCodeRenderer.prototype.updateLines = function() {
   var self = this;
@@ -302,12 +289,20 @@ GCodeRenderer.prototype.setIndex = function(index) {
   }
 
   var geometry = new THREE.Geometry();
+  var start = new THREE.Vector3(0, 0, 0);
+  geometry.vertices.push(start);
+  geometry.colors.push(green);
 
-  for (var i = 0; i < index; i++) {
-    var verts = this.gcodes[i].vertices;
+  for (var i = 0; i < index+1; i++) {
+    var code = this.gcodes[i];
+    var verts = code.vertices;
     var color;
-    if (this.gcodes[i].extrude)
-      color = blue;
+    if (code.extrude) {
+      if (code.toolNum === 0)
+        color = blue;
+      else if (code.toolNum === 1)
+        color = yellow;
+    }
     else
       color = green;
 

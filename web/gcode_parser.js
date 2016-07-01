@@ -121,6 +121,7 @@ GCodeParser.prototype.parse = function(gcode) {
       current.words.push(word);
     });
   }
+  current.cmd = current.words[0].letter+current.words[0].value;
   self.model.codes.push(current);
   return self.model;
 };
