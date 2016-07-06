@@ -23,10 +23,8 @@ function openDialog() {
 var gr;
 
 function onGCodeLoaded(gcode) {
-      var gp = new GCodeParser();
-      var gcodes = gp.parse(gcode);
       gr = new GCodeRenderer();
-      var gcodeObj = gr.render(gcodes);
+      var gcodeObj = gr.render(gcode);
       // guiControllers.gcodeIndex.max(gr.viewModels.length - 1);
       // guiControllers.gcodeIndex.setValue(0);
       // guiControllers.animate.setValue(false);

@@ -29,9 +29,6 @@ GCodeParser.prototype.parseComments = function(line) {
   return comments;
 }
 
-// Parses the next statement and leaves the counter on the first character following
-// the statement. Returns 1 if there was a statements, 0 if end of string was reached
-// or there was an error (check state.status_code).
 GCodeParser.prototype.parseWord = function(word)
 {
   if (!word.length) {
@@ -46,10 +43,6 @@ GCodeParser.prototype.parseWord = function(word)
   }
 
   value = word.slice(1);
-  // value = parseFloat(word.slice(1));
-  // if (isNaN(value)) {
-  //   throw new Error('Bad number format: ' + value);
-  // }
 
   return new GWord(letter, value, word);
 };
