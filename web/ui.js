@@ -20,14 +20,13 @@ function openDialog() {
 }
 
 
-var gp, gf, gi, gr;
+var gr;
 
 function onGCodeLoaded(gcode) {
-      gp = new GCodeParser();
-      gf = gp.parse(gcode);
+      var gp = new GCodeParser();
+      var gcodes = gp.parse(gcode);
       gr = new GCodeRenderer();
-
-      var gcodeObj = gr.render(gf);
+      var gcodeObj = gr.render(gcodes);
       // guiControllers.gcodeIndex.max(gr.viewModels.length - 1);
       // guiControllers.gcodeIndex.setValue(0);
       // guiControllers.animate.setValue(false);
@@ -68,12 +67,13 @@ function onGCodeLoaded(gcode) {
   object = gcodeObj;
 
   // reset gcodeindex slider to proper max
-  guiControllers.gcodeIndex.max(gr.gcodes.length-1);
+  guiControllers.gcodeIndex.max(Object.keys(gr.gcodes).length - 1);
   guiControllers.layerIndex.max(gr.layerIndex);
   guiControllers.gcodeIndex.updateDisplay();
   guiControllers.layerIndex.updateDisplay();
 
   scene.add(object);
+
 }
 
 $(function() {

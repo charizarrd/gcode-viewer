@@ -3,7 +3,6 @@
  */
 
 function GCodeParser() {
-  this.model = new GCodeModel();
 }
 
 GCodeParser.prototype.parseComments = function(line) {
@@ -56,12 +55,11 @@ GCodeParser.prototype.parseWord = function(word)
 };
 
 GCodeParser.prototype.parseLine = function(line) {
-
   var self = this,
       words,
       i = 0,
       l = 0,
-      pLine = new GCode(),
+      parsedWords = [],
       pWord;
 
   var comments = self.parseComments(line);
@@ -83,7 +81,7 @@ GCodeParser.prototype.parseLine = function(line) {
     // console.log('parsing word: "' + words[i] + '"');
     try {
       pWord = this.parseWord(words[i]);
-      pLine.words.push(pWord);
+      parsedWords.push(pWord);
     }
     catch(e) {
       console.log(e.message);
@@ -92,36 +90,45 @@ GCodeParser.prototype.parseLine = function(line) {
     // var message = words[i] + " code: " + pWord.letter + " val: " + pWord.value + " group: ";
     // console.log(message);
   }
-  return pLine;
+  return parsedWords;
 };
 
 GCodeParser.prototype.parse = function(gcode) {
+  var gcodes = [];
   var lines = gcode.split('\n'),
       i = 0,
       l = lines.length,
       self = this,
-      lineCode,
+      words,
       current = new GCode();
   for ( ; i < l; i++) {
     // self.model.codes.push(self.parseLine(lines[i]));
 
-    lineCode = self.parseLine(lines[i]);
-    // Trying to auto-group words across multiple lines and split single lines
-    lineCode.words.forEach(function(word) {
-      switch(word.letter) {
-        // Detect new code group, add current group to model & start a new group
-        case 'G': case 'M': case 'T':
-          if(current.words.length > 0) {
-            current.cmd = current.words[0].letter+current.words[0].value;
-            self.model.codes.push(current);
-            current = new GCode();
-          }
+    current = new GCode();
+    words = self.parseLine(lines[i]);
+    if (words.length > 0) {
+      switch(words[0].raw) {
+        case "G0": case "G1":
+        case "G2": case "G3":    
+        case "G90": case "G91":
+        case "T0":    
+        case "T1":
+        case "M42":   
+        case "M380":   
+        case "M381":
+          var params = {};
+          words.forEach(function(word, i) {
+            if (i === 0) {
+              current.cmd = word.raw;
+            } else {
+              params[word.letter.toLowerCase()] = parseFloat(word.value);
+            }
+          });
+          current.params = params;
+          gcodes.push(current);
           break;
       }
-      current.words.push(word);
-    });
+    }
   }
-  current.cmd = current.words[0].letter+current.words[0].value;
-  self.model.codes.push(current);
-  return self.model;
+  return gcodes;
 };

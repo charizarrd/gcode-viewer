@@ -1,32 +1,23 @@
-function GCodeModel() {
-  this.codes = [];
-};
-
-GCodeModel.prototype.toString = function() {
-  var self = this,
-      output = "";
-  self.codes.forEach(function(code) {
-    output += code.toString() + "\n";
-  });
-  return output;
-};
-
 function GCode() {
-  this.words = [];
+  this.params = {};
   this.cmd = "";
+
+  this.vertices = [];
+  this.arrayIndex = 0;
   this.layerNum = 0;
   this.extrude = false;
-  this.vertices = [];
   this.toolNum = 0;
+
 };
 
 GCode.prototype.toString = function() {
   var self = this,
       output = "";
 
-  self.words.forEach(function(word) {
-    output += word.toString() + "\n";
-  });
+  output += this.cmd.toString() + " ";
+  for (var p in self.params) {
+    output += p.toString() + self.params[p].toString() + " ";
+  }
 
   return output;
 };
