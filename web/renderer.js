@@ -88,12 +88,22 @@ function createScene(container) {
 
         if (layerNum !== undefined)
           guiParameters.layerIndex = layerNum;
+
+        guiParameters.layerHeight = 0;
       } else if (guiParameters.updateLayer) {
         var vertexIndex = gr.setLayer(guiParameters.layerIndex);   
         guiParameters.updateLayer = false;
 
         if (vertexIndex !== undefined)
           guiParameters.gcodeIndex = vertexIndex;
+        
+        guiParameters.layerHeight = 0;
+      }
+      else if (guiParameters.updateLayerHeight) {
+        gr.setLayerHeight(guiParameters.layerHeight);
+
+        guiParameters.gcodeIndex = 0;
+        guiParameters.layerIndex = 0;
       }
     }
 

@@ -9,10 +9,14 @@ function GCodeRenderer() {
   this.gcodes = {};
   this.numGCodes = 0;
 
-  // tracks layers
+  // tracks layers based on print order
   this.layers = {}; // maps layer num to index of last gcode in that layer
   this.layerIndex = 0;
   this.currentLayerHeight = 0;
+
+  // tracks layers based on layer height (NOTE: does not include )
+  this.layerHeights = {} // maps layer height to array of layer nums
+  this.layerHeightSorted = [];
 
   this.baseObject = new THREE.Object3D();
 
@@ -58,8 +62,7 @@ GCodeRenderer.prototype.render = function(gcode) {
       words,
       code;
 
-  var num = 0;
-
+  // parsing
   for ( ; i < l; i++) {
     words = self.parser.parseLine(lines[i]);    
     code = {};
@@ -81,10 +84,17 @@ GCodeRenderer.prototype.render = function(gcode) {
   }
 
   // last layer
-  self.layers[self.layerIndex] = self.gcodes.length-1;
+  self.layers[self.layerIndex] = self.numGCodes;
   self.currentLayerHeight = self.lastLine.z;
 
-
+  if (self.currentLayerHeight in self.layerHeights) {
+    self.layerHeights[self.currentLayerHeight].push(self.layerIndex);
+  } else {
+    self.layerHeights[self.currentLayerHeight] = [self.layerIndex];
+  }
+  self.layerHeightSorted = Object.keys(self.layerHeights).sort(function(a, b) {
+    return Number(a) - Number(b);
+  });
 
   // using Float32Array.from() always crashes the browser so copy over
   // array piece by piece...
@@ -103,10 +113,12 @@ GCodeRenderer.prototype.render = function(gcode) {
     index += range;
   }
 
+  // this.vertices = vertices; // ~extra 200 mb ish
+
   this.visualizeGeo.addAttribute('position', new THREE.BufferAttribute(vertices, 3));
   this.visualizeGeo.addAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-  var feedLine = new THREE.Line(this.visualizeGeo, this.extrudeMat);
+  var feedLine = new THREE.Line(this.visualizeGeo, new THREE.MultiMaterial([this.extrudeMat]));
   self.baseObject.add(feedLine);
 
   // Center
@@ -123,7 +135,7 @@ GCodeRenderer.prototype.render = function(gcode) {
 
       scale = Math.min(zScale, Math.min(xScale, yScale));
 
-  // self.baseObject.position = self.center.multiplyScalar(-scale);
+  self.baseObject.position = self.center.multiplyScalar(-scale);
   self.baseObject.scale.multiplyScalar(scale);
 
   return self.baseObject;
@@ -134,10 +146,10 @@ GCodeRenderer.prototype.gcodeHandler = function(code) {
     // moving and/or extruding
     case "G0": case "G1":
     case "G2": case "G3":
+      this.numGCodes += 1;
       this.gcodes[this.numGCodes] = {};
       this.gcodes[this.numGCodes].vertexNum = this.vertices.length/3;
       this.gcodes[this.numGCodes].layerNum = this.layerIndex;
-      this.numGCodes += 1;
       this.getVertices(code);
       break;
 
@@ -274,8 +286,16 @@ GCodeRenderer.prototype.getVertices = function(code) {
   }
 
   // check for new layer
+  // if ((extrude) && (newLine.z != self.currentLayerHeight)) { 
   if ((extrude) && (newLine.z != self.currentLayerHeight)) { 
     self.layers[self.layerIndex] = self.numGCodes-1;
+
+    if (self.currentLayerHeight in self.layerHeights) {
+      self.layerHeights[self.currentLayerHeight].push(self.layerIndex);
+    } else {
+      self.layerHeights[self.currentLayerHeight] = [self.layerIndex];
+    }
+
     self.currentLayerHeight = newLine.z;
     self.layerIndex += 1;
   }
@@ -315,28 +335,58 @@ GCodeRenderer.prototype.setIndex = function(index) {
   var self = this;
   index = Math.floor(index);
   if( this.index == index ) { return; }
-  if( index < 0 || index >= this.numGCodes ) {
+  if( index < 0 || index > this.numGCodes ) {
     throw new Error("invalid index");
   }
 
-  var arrayIndex = this.gcodes[index].vertexNum;
-  this.visualizeGeo.setDrawRange(0, arrayIndex);
+  var arrayIndex = 0;
+  var layerNum = 0;
+  if (index > 0) {
+    arrayIndex = this.gcodes[index].vertexNum;
+    layerNum = this.gcodes[index].layerNum;
+  }
+
+  // this.visualizeGeo.setDrawRange();
+  this.visualizeGeo.clearGroups();
+  this.visualizeGeo.addGroup(0, arrayIndex, 0);
   
   this.index = index;
 
-  return this.gcodes[index].layerNum;
+  return layerNum;
 };
 
 GCodeRenderer.prototype.setLayer = function(layerIndex) {
   layerIndex = Math.floor(layerIndex);
 
   var index = this.layers[layerIndex];
-  if( this.index == index ) { return; }
-  if( index < 0 || index >= this.numGCodes ) {
-    throw new Error("invalid index");
-  }
 
   this.setIndex(index);
 
   return index;
 };
+
+GCodeRenderer.prototype.setLayerHeight = function(heightIndex) {
+  var self = this;
+  heightIndex = Math.floor(heightIndex);
+  if( heightIndex < 0 || heightIndex > this.layerHeightSorted.length ) {
+    throw new Error("invalid index");
+  }
+
+  this.visualizeGeo.clearGroups();
+
+  if (heightIndex === 0) {
+    self.visualizeGeo.addGroup(0, 0, 0);
+  } else {
+    heightIndex -= 1;
+    var layers = this.layerHeights[this.layerHeightSorted[heightIndex]];
+
+    layers.forEach(function(layerNum) {
+      var startIndex = 0;
+      if (layerNum > 0)
+        startIndex = self.gcodes[self.layers[layerNum-1]].vertexNum;
+      var endIndex = self.gcodes[self.layers[layerNum]].vertexNum;
+      self.visualizeGeo.addGroup(startIndex, endIndex - startIndex, 0);
+    });
+  }
+};
+

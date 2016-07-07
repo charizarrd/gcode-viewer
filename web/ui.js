@@ -25,11 +25,6 @@ var gr;
 function onGCodeLoaded(gcode) {
       gr = new GCodeRenderer();
       var gcodeObj = gr.render(gcode);
-      // guiControllers.gcodeIndex.max(gr.viewModels.length - 1);
-      // guiControllers.gcodeIndex.setValue(0);
-      // guiControllers.animate.setValue(false);
-
-
 
       camera.position.z = 500;
       camera.position.y = -1500;
@@ -53,7 +48,14 @@ function onGCodeLoaded(gcode) {
     object.children.forEach(function(child) {
       if (child instanceof THREE.Line) {
         child.geometry.dispose();
-        child.material.dispose();
+
+        if (child.material instanceof THREE.Material) {
+          child.material.dispose();
+        } else if (child.material instanceof THREE.MultiMaterial) {
+          child.material.materials.forEach(function(mat) {
+            mat.dispose();
+          });
+        }
       }
     });
 
@@ -65,10 +67,12 @@ function onGCodeLoaded(gcode) {
   object = gcodeObj;
 
   // reset gcodeindex slider to proper max
-  guiControllers.gcodeIndex.max(Object.keys(gr.gcodes).length - 1);
+  guiControllers.gcodeIndex.max(gr.numGCodes);
   guiControllers.layerIndex.max(gr.layerIndex);
+  guiControllers.layerHeight.max(gr.layerHeightSorted.length);
   guiControllers.gcodeIndex.updateDisplay();
   guiControllers.layerIndex.updateDisplay();
+  guiControllers.layerHeight.updateDisplay();
 
   scene.add(object);
 
@@ -132,8 +136,9 @@ $(function() {
 var guiControllers = {
   gcodeIndex: undefined,
   layerIndex: undefined,
-  // animate: undefined
+  layerHeight: undefined,
 };
+
 function setupGui() {
 
   var gui = new dat.GUI();
@@ -146,28 +151,33 @@ function setupGui() {
 
     gcodeIndex:   0,
     layerIndex: 0,
+    layerHeight: 0,
     updateLayer: false,
     updateGcodeIndex: false,
-
+    updateLayerHeight: false,
   };
 
   guiControllers.gcodeIndex = gui.add(guiParameters, "gcodeIndex").min(0).max(200000).step(1).listen();
   guiControllers.layerIndex = gui.add(guiParameters, "layerIndex").min(0).max(1000).step(1).listen();
-  // guiControllers.animate = gui.add(guiParameters, 'animate').listen();
-  // gui.add(guiParameters, 'speed', { Slow: 1, Normal: 2, Fast: 5 }, "Normal" );
-  // gui.addColor(guiParameters, 'color');
+  guiControllers.layerHeight = gui.add(guiParameters, "layerHeight").min(0).max(1000).step(1).listen();
 
 
   guiControllers.gcodeIndex.onChange(function(value) {
     guiParameters.updateLayer = false;
     guiParameters.updateGcodeIndex = true;
+    guiParameters.updateLayerHeight = false;
   });
 
   guiControllers.layerIndex.onChange(function(value) {
     guiParameters.updateLayer = true;
     guiParameters.updateGcodeIndex = false;
+    guiParameters.updateLayerHeight = false;
   });
 
-
+  guiControllers.layerHeight.onChange(function(value) {
+    guiParameters.updateLayer = false;
+    guiParameters.updateGcodeIndex = false;
+    guiParameters.updateLayerHeight = true;
+  });
 };
 
