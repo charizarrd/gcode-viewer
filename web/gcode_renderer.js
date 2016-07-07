@@ -286,7 +286,6 @@ GCodeRenderer.prototype.getVertices = function(code) {
   }
 
   // check for new layer
-  // if ((extrude) && (newLine.z != self.currentLayerHeight)) { 
   if ((extrude) && (newLine.z != self.currentLayerHeight)) { 
     self.layers[self.layerIndex] = self.numGCodes-1;
 

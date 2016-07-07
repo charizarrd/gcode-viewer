@@ -158,7 +158,7 @@ function setupGui() {
   };
 
   guiControllers.gcodeIndex = gui.add(guiParameters, "gcodeIndex").min(0).max(200000).step(1).listen();
-  guiControllers.layerIndex = gui.add(guiParameters, "layerIndex").min(0).max(1000).step(1).listen();
+  guiControllers.layerIndex = gui.add(guiParameters, "layerIndex").min(0).max(10000).step(1).listen();
   guiControllers.layerHeight = gui.add(guiParameters, "layerHeight").min(0).max(1000).step(1).listen();
 
 
