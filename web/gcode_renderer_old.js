@@ -1,20 +1,5 @@
-// with indexed buffergeometry
-
 function GCodeRenderer() {
   this.parser = new GCodeParser();
-
-  var shape = [];
-  var radius = 0.2;
-  var numPoints = 6;
-  for ( var i = 0; i < numPoints; i ++ ) {
-    var a = (i % numPoints) / numPoints * 2*Math.PI;
-    shape.push(new THREE.Vector3(Math.cos(a) * radius, Math.sin(a) * radius, 0));
-  }
-  var geometry = new THREE.Geometry();
-  geometry.vertices = shape;
-  this.shape = new THREE.Line(geometry, new THREE.LineBasicMaterial());
-
-  this.up = new THREE.Vector3(0, 0, 1);
 
   // gcode command mapping to vertex number in buffergeometry and to layer num
   this.gcodes = {};
@@ -31,19 +16,15 @@ function GCodeRenderer() {
 
   this.baseObject = new THREE.Object3D();
 
-  // this.extrudeMat = new THREE.LineBasicMaterial({
-  //       opacity: 0.8,
-  //       transparent: true,
-  //       linewidth: 2,
-  //       vertexColors: THREE.VertexColors });
-
-  this.extrudeMat = new THREE.MeshBasicMaterial();
+  this.extrudeMat = new THREE.LineBasicMaterial({
+        opacity: 0.8,
+        transparent: true,
+        linewidth: 2,
+        vertexColors: THREE.VertexColors });
 
   // commands to visualize
   this.index = 0;
   this.vertices = [];
-  this.vIndex = 0;
-  this.faces = [];
   this.colors = [];
   this.visualizeGeo = new THREE.BufferGeometry();
 
@@ -78,13 +59,8 @@ GCodeRenderer.prototype.render = function(gcode) {
       words,
       code;
 
-  console.log(l);
-  // l = 50000;
   // parsing
   for ( ; i < l; i++) {
-    if ((i % 100000) == 0)
-      console.log(i, self.vIndex);
-
     words = self.parser.parseLine(lines[i]);    
     code = {};
 
@@ -123,10 +99,8 @@ GCodeRenderer.prototype.render = function(gcode) {
 
   // using Float32Array.from() always crashes the browser so copy over
   // array piece by piece...
-  var l = self.faces.length;
   var vertices = new Float32Array(self.vertices.length);
-  var faces = new Uint32Array(l);
-  var colors = new Uint8Array(self.vertices.length).fill(1);
+  var colors = new Float32Array(self.colors.length);
 
   var index = 0;
   var range = 10000000;
@@ -135,8 +109,8 @@ GCodeRenderer.prototype.render = function(gcode) {
     index += range;
   }
   index = 0;
-  while (self.faces.length > 0) {
-    faces.set(self.faces.splice(0, range), index);
+  while (self.colors.length > 0) {
+    colors.set(self.colors.splice(0, range), index);
     index += range;
   }
 
@@ -144,14 +118,9 @@ GCodeRenderer.prototype.render = function(gcode) {
 
   this.visualizeGeo.addAttribute('position', new THREE.BufferAttribute(vertices, 3));
   this.visualizeGeo.addAttribute('color', new THREE.BufferAttribute(colors, 3));
-  this.visualizeGeo.setIndex(new THREE.BufferAttribute(faces, 1));
 
-  // var feedLine = new THREE.Line(this.visualizeGeo, new THREE.MultiMaterial([this.extrudeMat]));
-  var feedLine = new THREE.Mesh(this.visualizeGeo, new THREE.MultiMaterial([this.extrudeMat]));
+  var feedLine = new THREE.Line(this.visualizeGeo, new THREE.MultiMaterial([this.extrudeMat]));
   self.baseObject.add(feedLine);
-
-  this.visualizeGeo.addGroup(0, l, 0);
-  // self.setIndex(l);
 
   // Center
   self.visualizeGeo.computeBoundingBox();
@@ -277,15 +246,21 @@ GCodeRenderer.prototype.getVertices = function(code) {
   }
 
   var color = self.getColor(extrude);
-  var path;
-  var step;
 
   if ((code.cmd === "G0") || (code.cmd === "G1")) {
-    path = new THREE.LineCurve3(
-      new THREE.Vector3(self.lastLine.x, self.lastLine.y, self.lastLine.z),
-      new THREE.Vector3(newLine.x, newLine.y, newLine.z)
-    );
-    step = 1;
+    numVerts = 2;
+    self.vertices.push(self.lastLine.x);
+    self.vertices.push(self.lastLine.y);
+    self.vertices.push(self.lastLine.z);
+    self.vertices.push(newLine.x);
+    self.vertices.push(newLine.y);
+    self.vertices.push(newLine.z);
+
+    for (var i = 0; i < numVerts; i++) {
+      self.colors.push(color.r);
+      self.colors.push(color.g);
+      self.colors.push(color.b);
+    }
   } else {
     var currentX = self.lastLine['x'];
     var currentY = self.lastLine['y'];
@@ -308,64 +283,16 @@ GCodeRenderer.prototype.getVertices = function(code) {
       0                 // aRotation 
     );
 
-    var verts = [];
-    curve.getPoints(40).forEach(function(p) {
-      verts.push(new THREE.Vector3(p.x, p.y, newLine.z));
+    var points = curve.getPoints(50);
+    numVerts = 50;
+    points.forEach(function(point) {
+      self.vertices.push(point.x);
+      self.vertices.push(point.y);
+      self.vertices.push(newLine.z);
+      self.colors.push(color.r);
+      self.colors.push(color.g);
+      self.colors.push(color.b);
     });
-
-    path = new THREE.CatmullRomCurve3(verts);
-    step = 0.1;
-  }
-
-  if (extrude) {
-    // var counter = 0;
-    var tangent = new THREE.Vector3();
-    var axis = new THREE.Vector3();
-    // while (counter <= 1) {
-    for (var counter = 0; counter < path.)
-        self.shape.position.copy( path.getPointAt(counter) );
-
-        tangent = path.getTangentAt(counter).normalize();
-
-        axis.crossVectors(self.up, tangent).normalize();
-
-        var radians = Math.acos(self.up.dot(tangent));
-
-        self.shape.quaternion.setFromAxisAngle(axis, radians);
-
-        self.shape.updateMatrix();
-
-        var verts = [];
-        self.shape.geometry.vertices.forEach(function(v) {
-          verts.push(v.clone().applyMatrix4(self.shape.matrix));
-        });
-        var l = verts.length;
-
-        for (var i = 0; i < l; i++) {
-          var v = verts[i];
-          self.vertices.push(v.x);
-          self.vertices.push(v.y);
-          self.vertices.push(v.z);
-
-          // for triangles, verts should be in CCW order
-          // if (self.vIndex >= l) {
-          if (counter > 0) {
-            var j = (i+1) % l;
-
-            self.faces.push(self.vIndex + j);
-            self.faces.push(self.vIndex + i);
-            self.faces.push(self.vIndex - l + i);
-
-            self.faces.push(self.vIndex + j);
-            self.faces.push(self.vIndex - l + i);
-            self.faces.push(self.vIndex - l + j)
-          }
-
-        }
-
-        self.vIndex += l;
-        counter += step;
-    }
   }
 
   // check for new layer

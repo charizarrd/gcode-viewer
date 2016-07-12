@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				background-color: #ffffff;
+				margin: 0px;
+				overflow: hidden;
+			}
+			a {
+				color:#0078ff;
+			}
+			#info {
+				position: absolute;
+				top: 10px; width: 100%;
+				color: #ffffff;
+				padding: 5px;
+				font-family: Monospace;
+				font-size: 13px;
+				text-align: center;
+				z-index:100;
+			}
+			a {
+				color: orange;
+				text-decoration: none;
+			}
+			a:hover {
+				color: #0080ff;
+			}
+		</style>
+	</head>
+	
+	<body onLoad="init()"></body>
+
+		<script src="lib/three.min.js"></script>
+		<script src="http://threejs.org/examples/js/controls/OrbitControls.js"></script>
+
+
+		<script>
+			// used example code from: http://jsfiddle.net/qGPTT/133/
+			
+			var controls, scene, camera, shape, spline, counter = 0;
+
+			var vertices = [];
+
+			var tangent = new THREE.Vector3();
+			var axis = new THREE.Vector3();
+			var up = new THREE.Vector3(0, 0, 1);
+			var lastVerts;
+
+			function init() {
+			    renderer = new THREE.WebGLRenderer();
+			    renderer.setSize(window.innerWidth, window.innerHeight);
+			    document.body.appendChild(renderer.domElement);
+			    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 5000);
+			    camera.position.set(0, 0, 600);
+			    camera.lookAt(new THREE.Vector3(0, 100, 0));
+			    scene = new THREE.Scene();
+
+			    controls = new THREE.OrbitControls( camera, renderer.domElement );
+			
+			    var numPoints = 50;
+
+			    spline = new THREE.SplineCurve3([
+			    new THREE.Vector3(0, 0, 0),
+			    new THREE.Vector3(0, 200, 0),
+			    new THREE.Vector3(150, 150, 0),
+			    new THREE.Vector3(150, 50, 0),
+			    new THREE.Vector3(250, 100, 0),
+			    new THREE.Vector3(250, 300, 0)]);
+
+			    var material = new THREE.LineBasicMaterial({
+			        color: 0xff00f0,
+			    });
+
+			    var geometry = new THREE.Geometry();
+			    var splinePoints = spline.getPoints(numPoints);
+
+			    for (var i = 0; i < splinePoints.length; i++) {
+			        geometry.vertices.push(splinePoints[i]);
+			    }
+
+			    var line = new THREE.Line(geometry, material);
+			    scene.add(line);
+
+			    shape = [];
+			  	var radius = 20;
+			  	var numPoints = 6;
+			  	for ( var i = 0; i < numPoints; i ++ ) {
+			    	var a = (i % numPoints) / numPoints * 2*Math.PI;
+			    	shape.push(new THREE.Vector3(Math.cos(a) * radius, Math.sin(a) * radius, 0));
+			  	}
+			  	geometry = new THREE.Geometry();
+			  	geometry.vertices = shape;
+			  	shape = new THREE.Line(geometry, new THREE.LineBasicMaterial());
+				scene.add(shape);			
+
+			    animate();
+
+			    setInterval(moveshape, 100);
+			}
+
+			function moveshape() {
+		
+				if (counter <= 1) {
+			        shape.position.copy( spline.getPointAt(counter) );
+
+			        tangent = spline.getTangentAt(counter).normalize();
+
+			        axis.crossVectors(up, tangent).normalize();
+
+			        var radians = Math.acos(up.dot(tangent));
+
+			        shape.quaternion.setFromAxisAngle(axis, radians);
+
+			        // shape.updateMatrix();
+
+			        // var verts = [];
+			        // shape.geometry.vertices.forEach(function(v) {
+			        // 	verts.push(v.clone().applyMatrix4(shape.matrix));
+			        // });
+
+		        	// // console.log(pos, lastPos, counter);
+			        // for (var i = 0; i < verts.length; i++) {
+			        // 	if (lastVerts != undefined) {
+				       //  	var v1 = lastVerts[i];
+			        // 		vertices.push(v1.x);
+			        // 		vertices.push(v1.y);
+			        // 		vertices.push(v1.z);
+			        // 		var v2, v3;
+
+				       //  	if (i % 2 == 0) {
+				       //  		v2 = verts[i];
+				       //  		v3 = verts[i+1];
+				       //  	} else {
+					      //   	v2 = lastVerts[i-1];
+					      //   	v3 = verts[i];
+				       //  	}
+
+			        // 		vertices.push(v2.x);
+			        // 		vertices.push(v2.y);
+			        // 		vertices.push(v2.z);
+			        // 		vertices.push(v3.x);
+			        // 		vertices.push(v3.y);
+			        // 		vertices.push(v3.z);
+				       //  }
+			        // }
+
+			        // lastVerts = verts;
+
+			        counter += 0.01;
+			    }
+
+			    else {
+			    	counter = 0;
+			    }
+		  //       console.log(vertices.length);
+		  //       geometry = new THREE.BufferGeometry();
+				// 	geometry.addAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+				// 	geometry.addAttribute('color', new THREE.BufferAttribute(new Float32Array(vertices.length).fill(1)), 3);
+
+				// 	var feedLine = new THREE.Line(geometry, new THREE.LineBasicMaterial());
+				// // var feedLine = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial());
+		  //       scene.add(feedLine);
+			}
+
+			function animate() {
+			    requestAnimationFrame(animate);
+			    render();
+			}
+
+			function render() {
+			    renderer.render(scene, camera);
+			}
+		</script>
+	</body>
+</html>

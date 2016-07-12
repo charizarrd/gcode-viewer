@@ -1,4 +1,4 @@
-// with indexed buffergeometry
+// with triangles
 
 function GCodeRenderer() {
   this.parser = new GCodeParser();
@@ -42,8 +42,6 @@ function GCodeRenderer() {
   // commands to visualize
   this.index = 0;
   this.vertices = [];
-  this.vIndex = 0;
-  this.faces = [];
   this.colors = [];
   this.visualizeGeo = new THREE.BufferGeometry();
 
@@ -78,12 +76,11 @@ GCodeRenderer.prototype.render = function(gcode) {
       words,
       code;
 
-  console.log(l);
   // l = 50000;
   // parsing
   for ( ; i < l; i++) {
-    if ((i % 100000) == 0)
-      console.log(i, self.vIndex);
+    if ((i % 10000) == 0)
+      console.log(i);
 
     words = self.parser.parseLine(lines[i]);    
     code = {};
@@ -123,9 +120,8 @@ GCodeRenderer.prototype.render = function(gcode) {
 
   // using Float32Array.from() always crashes the browser so copy over
   // array piece by piece...
-  var l = self.faces.length;
   var vertices = new Float32Array(self.vertices.length);
-  var faces = new Uint32Array(l);
+  // var colors = new Float32Array(self.colors.length);
   var colors = new Uint8Array(self.vertices.length).fill(1);
 
   var index = 0;
@@ -134,24 +130,22 @@ GCodeRenderer.prototype.render = function(gcode) {
     vertices.set(self.vertices.splice(0, range), index);
     index += range;
   }
-  index = 0;
-  while (self.faces.length > 0) {
-    faces.set(self.faces.splice(0, range), index);
-    index += range;
-  }
+  // index = 0;
+  // while (self.colors.length > 0) {
+  //   colors.set(self.colors.splice(0, range), index);
+  //   index += range;
+  // }
 
   // this.vertices = vertices; // ~extra 200 mb ish
 
   this.visualizeGeo.addAttribute('position', new THREE.BufferAttribute(vertices, 3));
   this.visualizeGeo.addAttribute('color', new THREE.BufferAttribute(colors, 3));
-  this.visualizeGeo.setIndex(new THREE.BufferAttribute(faces, 1));
 
   // var feedLine = new THREE.Line(this.visualizeGeo, new THREE.MultiMaterial([this.extrudeMat]));
   var feedLine = new THREE.Mesh(this.visualizeGeo, new THREE.MultiMaterial([this.extrudeMat]));
   self.baseObject.add(feedLine);
 
-  this.visualizeGeo.addGroup(0, l, 0);
-  // self.setIndex(l);
+  self.setIndex(self.numGCodes);
 
   // Center
   self.visualizeGeo.computeBoundingBox();
@@ -287,6 +281,8 @@ GCodeRenderer.prototype.getVertices = function(code) {
     );
     step = 1;
   } else {
+    console.timeStamp(code.cmd);
+
     var currentX = self.lastLine['x'];
     var currentY = self.lastLine['y'];
     var centerX = currentX + newLine.i;
@@ -318,11 +314,11 @@ GCodeRenderer.prototype.getVertices = function(code) {
   }
 
   if (extrude) {
-    // var counter = 0;
+    var counter = 0;
     var tangent = new THREE.Vector3();
     var axis = new THREE.Vector3();
-    // while (counter <= 1) {
-    for (var counter = 0; counter < path.)
+    var lastVerts;
+    while (counter <= 1) {
         self.shape.position.copy( path.getPointAt(counter) );
 
         tangent = path.getTangentAt(counter).normalize();
@@ -339,31 +335,42 @@ GCodeRenderer.prototype.getVertices = function(code) {
         self.shape.geometry.vertices.forEach(function(v) {
           verts.push(v.clone().applyMatrix4(self.shape.matrix));
         });
-        var l = verts.length;
+        var offset = verts.length;
+        for (var i = 0; i < verts.length; i++) {
+          if (lastVerts != undefined) {
+            // for triangles, verts must be in CCW!!!!!!
+            var j = (i+1) % verts.length;
+            var v1 = lastVerts[i];
+            var v2 = verts[i];
+            var v3 = verts[j];
 
-        for (var i = 0; i < l; i++) {
-          var v = verts[i];
-          self.vertices.push(v.x);
-          self.vertices.push(v.y);
-          self.vertices.push(v.z);
+            self.vertices.push(v3.x);
+            self.vertices.push(v3.y);
+            self.vertices.push(v3.z);
+            self.vertices.push(v2.x);
+            self.vertices.push(v2.y);
+            self.vertices.push(v2.z);
+            self.vertices.push(v1.x);
+            self.vertices.push(v1.y);
+            self.vertices.push(v1.z);
+          
+            v2 = lastVerts[j];
+            v3 = verts[j];
 
-          // for triangles, verts should be in CCW order
-          // if (self.vIndex >= l) {
-          if (counter > 0) {
-            var j = (i+1) % l;
-
-            self.faces.push(self.vIndex + j);
-            self.faces.push(self.vIndex + i);
-            self.faces.push(self.vIndex - l + i);
-
-            self.faces.push(self.vIndex + j);
-            self.faces.push(self.vIndex - l + i);
-            self.faces.push(self.vIndex - l + j)
+            self.vertices.push(v3.x);
+            self.vertices.push(v3.y);
+            self.vertices.push(v3.z);
+            self.vertices.push(v1.x);
+            self.vertices.push(v1.y);
+            self.vertices.push(v1.z);
+            self.vertices.push(v2.x);
+            self.vertices.push(v2.y);
+            self.vertices.push(v2.z);
           }
-
         }
 
-        self.vIndex += l;
+        lastVerts = verts;
+
         counter += step;
     }
   }
