@@ -4,11 +4,10 @@ function GCodeRenderer() {
   this.parser = new GCodeParser();
 
   var shape = [];
-  var radius = 0.05;
   var numPoints = 6;
   for ( var i = 0; i < numPoints; i ++ ) {
     var a = (i % numPoints) / numPoints * 2*Math.PI;
-    shape.push(new THREE.Vector3(Math.cos(a) * radius, Math.sin(a) * radius, 0));
+    shape.push(new THREE.Vector3(Math.cos(a), Math.sin(a), 0));
   }
   var geometry = new THREE.Geometry();
   geometry.vertices = shape;
@@ -242,11 +241,12 @@ GCodeRenderer.prototype.getColor = function(extrude) {
 GCodeRenderer.prototype.getVertices = function(code) {
   var self = this;
 
-  var newLine = code.params;
+  var newLine = Object.assign({}, code.params);
   var extrude = (code.params.e !== undefined);
-  var numVerts;
+  var tubeRadius;
 
-  for (var p in self.lastLine) {
+
+  for (var p in self.lastLine) { 
     switch (p) {
       case 'x': case 'y': case 'z':
         if (newLine[p] === undefined)
@@ -323,7 +323,15 @@ GCodeRenderer.prototype.getVertices = function(code) {
     path = new THREE.CatmullRomCurve3(verts);
   }
 
-  if (extrude) {
+  if ((extrude) && (path.getLength() !== 0)) {
+    if (self.toolNum === 0) {
+      // tubeRadius = 0.35;
+      tubeRadius = newLine.e / path.getLength() * 8;
+      // console.log(tubeRadius);
+    } else {
+      tubeRadius = 0.25;
+    }
+
     var counter = 0;
     var tangent = new THREE.Vector3();
     var axis = new THREE.Vector3();
@@ -342,7 +350,7 @@ GCodeRenderer.prototype.getVertices = function(code) {
 
         var verts = [];
         self.shape.geometry.vertices.forEach(function(v) {
-          verts.push(v.clone().applyMatrix4(self.shape.matrix));
+          verts.push(v.clone().multiplyScalar(tubeRadius).applyMatrix4(self.shape.matrix));
         });
         var l = verts.length;
 
@@ -376,20 +384,20 @@ GCodeRenderer.prototype.getVertices = function(code) {
         self.numVertices += l;
         counter += 1/total;
     }
-  }
 
-  // check for new layer
-  if ((extrude) && (newLine.z != self.currentLayerHeight)) { 
-    self.layers[self.layerIndex] = self.numGCodes-1;
+    // check for new layer
+    if (newLine.z != self.currentLayerHeight) { 
+      self.layers[self.layerIndex] = self.numGCodes-1;
 
-    // if (self.currentLayerHeight in self.layerHeights) {
-    //   self.layerHeights[self.currentLayerHeight].push(self.layerIndex);
-    // } else {
-    //   self.layerHeights[self.currentLayerHeight] = [self.layerIndex];
-    // }
+      // if (self.currentLayerHeight in self.layerHeights) {
+      //   self.layerHeights[self.currentLayerHeight].push(self.layerIndex);
+      // } else {
+      //   self.layerHeights[self.currentLayerHeight] = [self.layerIndex];
+      // }
 
-    self.currentLayerHeight = newLine.z;
-    self.layerIndex += 1;
+      self.currentLayerHeight = newLine.z;
+      self.layerIndex += 1;
+    }
   }
 
   self.lastLine = newLine;
