@@ -69,10 +69,10 @@ function onGCodeLoaded(gcode) {
   // reset gcodeindex slider to proper max
   guiControllers.gcodeIndex.max(gr.numGCodes);
   guiControllers.layerIndex.max(gr.layerIndex);
-  guiControllers.layerHeight.max(gr.layerHeightSorted.length);
+  // guiControllers.layerHeight.max(gr.layerHeightSorted.length);
   guiControllers.gcodeIndex.updateDisplay();
   guiControllers.layerIndex.updateDisplay();
-  guiControllers.layerHeight.updateDisplay();
+  // guiControllers.layerHeight.updateDisplay();
 
   scene.add(object);
 
@@ -159,7 +159,7 @@ function setupGui() {
 
   guiControllers.gcodeIndex = gui.add(guiParameters, "gcodeIndex").min(0).max(200000).step(1).listen();
   guiControllers.layerIndex = gui.add(guiParameters, "layerIndex").min(0).max(10000).step(1).listen();
-  guiControllers.layerHeight = gui.add(guiParameters, "layerHeight").min(0).max(1000).step(1).listen();
+  // guiControllers.layerHeight = gui.add(guiParameters, "layerHeight").min(0).max(1000).step(1).listen();
 
 
   guiControllers.gcodeIndex.onChange(function(value) {
@@ -174,10 +174,10 @@ function setupGui() {
     guiParameters.updateLayerHeight = false;
   });
 
-  guiControllers.layerHeight.onChange(function(value) {
-    guiParameters.updateLayer = false;
-    guiParameters.updateGcodeIndex = false;
-    guiParameters.updateLayerHeight = true;
-  });
+  // guiControllers.layerHeight.onChange(function(value) {
+  //   guiParameters.updateLayer = false;
+  //   guiParameters.updateGcodeIndex = false;
+  //   guiParameters.updateLayerHeight = true;
+  // });
 };
 
