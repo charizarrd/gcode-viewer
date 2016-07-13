@@ -37,7 +37,7 @@ function GCodeRenderer() {
   //       linewidth: 2,
   //       vertexColors: THREE.VertexColors });
 
-  this.extrudeMat = new THREE.MeshBasicMaterial();
+  this.extrudeMat = new THREE.MeshStandardMaterial({color: 0xff6666});
 
   // commands to visualize
   this.index = 0;
@@ -85,6 +85,9 @@ GCodeRenderer.prototype.render = function(gcode) {
     if ((i % 100000) == 0)
       console.log(i, self.vIndex);
 
+    // if (i > 500000)
+    //   break;
+
     words = self.parser.parseLine(lines[i]);    
     code = {};
 
@@ -103,6 +106,7 @@ GCodeRenderer.prototype.render = function(gcode) {
       
     }
   }
+  console.log('hi');
 
   // last layer
   this.gcodes[this.numGCodes] = {};
@@ -125,11 +129,14 @@ GCodeRenderer.prototype.render = function(gcode) {
   // array piece by piece...
   var l = self.faces.length;
   var vertices = new Float32Array(self.vertices.length);
+  console.log(1);
   var faces = new Uint32Array(l);
+  console.log(2);
   var colors = new Uint8Array(self.vertices.length).fill(1);
+  console.log(3);
 
   var index = 0;
-  var range = 10000000;
+  var range = 1000000;
   while (self.vertices.length > 0) {
     vertices.set(self.vertices.splice(0, range), index);
     index += range;
@@ -145,12 +152,13 @@ GCodeRenderer.prototype.render = function(gcode) {
   this.visualizeGeo.addAttribute('position', new THREE.BufferAttribute(vertices, 3));
   this.visualizeGeo.addAttribute('color', new THREE.BufferAttribute(colors, 3));
   this.visualizeGeo.setIndex(new THREE.BufferAttribute(faces, 1));
+  this.visualizeGeo.computeVertexNormals();
 
   // var feedLine = new THREE.Line(this.visualizeGeo, new THREE.MultiMaterial([this.extrudeMat]));
   var feedLine = new THREE.Mesh(this.visualizeGeo, new THREE.MultiMaterial([this.extrudeMat]));
   self.baseObject.add(feedLine);
 
-  this.visualizeGeo.addGroup(0, l, 0);
+  // this.visualizeGeo.addGroup(0, l, 0);
   // self.setIndex(l);
 
   // Center
@@ -239,15 +247,6 @@ GCodeRenderer.prototype.getColor = function(extrude) {
     return green;
 };
 
-// t between 0-1
-GCodeRenderer.prototype.getPointAt = function(t, start, end) {
-  if (end === start)
-    return start;
-
-  var dist = (end - start) * t;
-  return start + dist;
-};
-
 GCodeRenderer.prototype.getVertices = function(code) {
   var self = this;
 
@@ -278,14 +277,14 @@ GCodeRenderer.prototype.getVertices = function(code) {
 
   var color = self.getColor(extrude);
   var path;
-  var step;
+  var total;
 
   if ((code.cmd === "G0") || (code.cmd === "G1")) {
     path = new THREE.LineCurve3(
       new THREE.Vector3(self.lastLine.x, self.lastLine.y, self.lastLine.z),
       new THREE.Vector3(newLine.x, newLine.y, newLine.z)
     );
-    step = 1;
+    total = 1;
   } else {
     var currentX = self.lastLine['x'];
     var currentY = self.lastLine['y'];
@@ -308,21 +307,37 @@ GCodeRenderer.prototype.getVertices = function(code) {
       0                 // aRotation 
     );
 
+    // var curvature = 1 / radius;
+    // var theta = endAngle - startAngle;
+    var theta;
+    if (clockwise) {
+      if (startAngle < endAngle)
+        theta = startAngle + (2*Math.PI - endAngle);
+      else
+        theta = startAngle - endAngle;
+    } else {
+      if (startAngle > endAngle)
+        theta = endAngle + (2*Math.PI - startAngle);
+      else
+        theta = endAngle - startAngle;
+    }
+    var x = Math.round(theta / (Math.PI/8));
+
+    total = 2*x;
+
     var verts = [];
     curve.getPoints(40).forEach(function(p) {
       verts.push(new THREE.Vector3(p.x, p.y, newLine.z));
     });
 
     path = new THREE.CatmullRomCurve3(verts);
-    step = 0.1;
   }
 
   if (extrude) {
-    // var counter = 0;
+    var counter = 0;
     var tangent = new THREE.Vector3();
     var axis = new THREE.Vector3();
-    // while (counter <= 1) {
-    for (var counter = 0; counter < path.)
+    while (counter <= 1) {
         self.shape.position.copy( path.getPointAt(counter) );
 
         tangent = path.getTangentAt(counter).normalize();
@@ -364,7 +379,7 @@ GCodeRenderer.prototype.getVertices = function(code) {
         }
 
         self.vIndex += l;
-        counter += step;
+        counter += 1/total;
     }
   }
 

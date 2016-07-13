@@ -72,9 +72,9 @@
 			    // new THREE.Vector3(250, 100, 0),
 			    // new THREE.Vector3(250, 300, 0)]);
 			    var curve = new THREE.EllipseCurve(
-			      38.189, 90.395,            // aX, aY
-			      4.48, 4.48,         // xRadius, yRadius
-			      0, 3.702,  // aStartAngle, aEndAngle
+			      5, 5,            // aX, aY
+			      5, 5,      // xRadius, yRadius
+			      0, Math.PI,  // aStartAngle, aEndAngle
 			      false,            // aClockwise
 			      0                 // aRotation 
 			    );
@@ -84,13 +84,12 @@
 					verts.push(new THREE.Vector3(p.x, p.y, 1.0));
 				});
 
-				// spline = new THREE.SplineCurve3(verts);
+				spline = new THREE.SplineCurve3(verts);
 
-			    spline = new THREE.LineCurve3(
-			    new THREE.Vector3(0, 0, 0),
+			    // spline = new THREE.LineCurve3(
+			    // new THREE.Vector3(0, 0, 0),
 			    // new THREE.Vector3(250, 300, 0));
-				new THREE.Vector3(52.293, 112.074, 0));
-
+				
 			    var material = new THREE.LineBasicMaterial({
 			        color: 0xff00f0,
 			    });
@@ -118,7 +117,7 @@
 				// scene.add(shape);
 
 				var l = shape.geometry.vertices.length;
-
+				var total = 3;
 				while (counter <= 1) {
 			        shape.position.copy( spline.getPointAt(counter) );
 
@@ -163,7 +162,7 @@
 			        vIndex += l;
 			        lastVerts = verts;
 
-			        counter += 1;
+			        counter += 1/total;
 			    }
 
 
