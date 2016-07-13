@@ -57,11 +57,18 @@ function createScene(container) {
     }, false );
     window.addEventListener( 'keydown', keydown, false );
 
+    stats = new Stats();
+    stats.domElement.style.position = 'absolute';
+    stats.domElement.style.top = '0px';
+    container.appendChild( stats.domElement );
+
   }
 
   function animate() {
     requestAnimationFrame( animate);
+    stats.begin();
     render();
+    stats.end();
 
   }
 
@@ -83,28 +90,31 @@ function createScene(container) {
     if( guiParameters && gr ) {
       if (guiParameters.updateGcodeIndex)
       {
-        var layerNum = gr.setIndex(guiParameters.gcodeIndex);
+        gr.setIndex(guiParameters.gcodeIndex);
         guiParameters.updateGcodeIndex = false;
 
-        if (layerNum !== undefined)
-          guiParameters.layerIndex = layerNum;
+        guiParameters.layerIndex = 0;
+        // if (layerNum !== undefined)
+          // guiParameters.layerIndex = layerNum;
 
-        guiParameters.layerHeight = 0;
+        // guiParameters.layerHeight = 0;
       } else if (guiParameters.updateLayer) {
-        var vertexIndex = gr.setLayer(guiParameters.layerIndex);   
+        gr.setLayer(guiParameters.layerIndex);   
         guiParameters.updateLayer = false;
 
-        if (vertexIndex !== undefined)
-          guiParameters.gcodeIndex = vertexIndex;
-        
-        guiParameters.layerHeight = 0;
-      }
-      else if (guiParameters.updateLayerHeight) {
-        gr.setLayerHeight(guiParameters.layerHeight);
-
         guiParameters.gcodeIndex = 0;
-        guiParameters.layerIndex = 0;
+
+        // if (vertexIndex !== undefined)
+        //   guiParameters.gcodeIndex = vertexIndex;
+
+        // guiParameters.layerHeight = 0;
       }
+      // else if (guiParameters.updateLayerHeight) {
+      //   gr.setLayerHeight(guiParameters.layerHeight);
+
+      //   guiParameters.gcodeIndex = 0;
+      //   guiParameters.layerIndex = 0;
+      // }
     }
 
     controls.update();

@@ -26,18 +26,16 @@ function GCodeRenderer() {
   this.currentLayerHeight = 0;
 
   // tracks layers based on layer height (NOTE: does not include )
-  this.layerHeights = {} // maps layer height to array of layer nums
-  this.layerHeightSorted = [];
+  // this.layerHeights = {} // maps layer height to array of layer nums
+  // this.layerHeightSorted = [];
 
   this.baseObject = new THREE.Object3D();
 
-  // this.extrudeMat = new THREE.LineBasicMaterial({
-  //       opacity: 0.8,
-  //       transparent: true,
-  //       linewidth: 2,
-  //       vertexColors: THREE.VertexColors });
-
-  this.extrudeMat = new THREE.MeshStandardMaterial({vertexColors: THREE.VertexColors});
+  this.extrudeMat = new THREE.MeshStandardMaterial({
+    vertexColors: THREE.VertexColors,
+    metalness: 0,
+    roughness: 1
+  });
 
   // commands to visualize
   this.index = 0;
@@ -46,9 +44,6 @@ function GCodeRenderer() {
   this.faces = [];
 
   this.visualizeGeo = new THREE.BufferGeometry();
-  // size must be multiple of 3!
-  // this.visualizeGeo.addAttribute('position', new THREE.BufferAttribute(new Float32Array(44000001), 3));
-  // this.vertices = this.visualizeGeo.attributes.position.array;
   this.vertices;
   this.vIndex = 0;
   this.colors;
@@ -84,7 +79,7 @@ GCodeRenderer.prototype.render = function(gcode) {
       words,
       code;
 
-
+  // size must be multiple of 3
   this.visualizeGeo.addAttribute('position', new THREE.BufferAttribute(new Float32Array(60*l), 3));
   this.vertices = this.visualizeGeo.attributes.position.array;
 
@@ -129,55 +124,34 @@ GCodeRenderer.prototype.render = function(gcode) {
   self.layers[self.layerIndex] = self.numGCodes;
   self.currentLayerHeight = self.lastLine.z;
 
-  if (self.currentLayerHeight in self.layerHeights) {
-    self.layerHeights[self.currentLayerHeight].push(self.layerIndex);
-  } else {
-    self.layerHeights[self.currentLayerHeight] = [self.layerIndex];
-  }
-  self.layerHeightSorted = Object.keys(self.layerHeights).sort(function(a, b) {
-    return Number(a) - Number(b);
-  });
+  // if (self.currentLayerHeight in self.layerHeights) {
+  //   self.layerHeights[self.currentLayerHeight].push(self.layerIndex);
+  // } else {
+  //   self.layerHeights[self.currentLayerHeight] = [self.layerIndex];
+  // }
+  // self.layerHeightSorted = Object.keys(self.layerHeights).sort(function(a, b) {
+  //   return Number(a) - Number(b);
+  // });
 
   // using Float32Array.from() always crashes the browser so copy over
   // array piece by piece...
   var l = self.faces.length;
-  // var vertices = new Float32Array(self.vertices.length);
-  // console.log(1, self.vertices.length);
   var faces = new Uint32Array(l);
-  console.log(2);
-  // var colors = new Uint8Array(self.colors.length);
-  // var colors = new Uint8Array(self.vIndex).fill(1);
-  console.log(3);
 
   var index = 0;
   var range = 1000000;
-  // while (self.vertices.length > 0) {
-  //   vertices.set(self.vertices.splice(0, range), index);
-  //   index += range;
-  // }
-  // while (self.colors.length > 0) {
-  //   colors.set(self.colors.splice(0, range), index);
-  //   index += range;
-  // }
-  index = 0;
   while (self.faces.length > 0) {
     faces.set(self.faces.splice(0, range), index);
     index += range;
   }
 
-  // this.vertices = vertices; // ~extra 200 mb ish
-
-  // this.visualizeGeo.addAttribute('position', new THREE.BufferAttribute(vertices, 3));
-  // this.visualizeGeo.addAttribute('color', new THREE.BufferAttribute(colors, 3));
   this.visualizeGeo.setIndex(new THREE.BufferAttribute(faces, 1));
   this.visualizeGeo.computeVertexNormals();
 
-  // var feedLine = new THREE.Line(this.visualizeGeo, new THREE.MultiMaterial([this.extrudeMat]));
   var feedLine = new THREE.Mesh(this.visualizeGeo, new THREE.MultiMaterial([this.extrudeMat]));
   self.baseObject.add(feedLine);
 
-  // this.visualizeGeo.addGroup(0, l, 0);
-  // self.setIndex(l);
+  this.visualizeGeo.addGroup(0, l, 0);
 
   // Center
   self.visualizeGeo.computeBoundingBox();
@@ -325,8 +299,6 @@ GCodeRenderer.prototype.getVertices = function(code) {
       0                 // aRotation 
     );
 
-    // var curvature = 1 / radius;
-    // var theta = endAngle - startAngle;
     var theta;
     if (clockwise) {
       if (startAngle < endAngle)
@@ -410,11 +382,11 @@ GCodeRenderer.prototype.getVertices = function(code) {
   if ((extrude) && (newLine.z != self.currentLayerHeight)) { 
     self.layers[self.layerIndex] = self.numGCodes-1;
 
-    if (self.currentLayerHeight in self.layerHeights) {
-      self.layerHeights[self.currentLayerHeight].push(self.layerIndex);
-    } else {
-      self.layerHeights[self.currentLayerHeight] = [self.layerIndex];
-    }
+    // if (self.currentLayerHeight in self.layerHeights) {
+    //   self.layerHeights[self.currentLayerHeight].push(self.layerIndex);
+    // } else {
+    //   self.layerHeights[self.currentLayerHeight] = [self.layerIndex];
+    // }
 
     self.currentLayerHeight = newLine.z;
     self.layerIndex += 1;
@@ -466,23 +438,30 @@ GCodeRenderer.prototype.setIndex = function(index) {
     layerNum = this.gcodes[index].layerNum;
   }
 
-  // this.visualizeGeo.setDrawRange();
   this.visualizeGeo.clearGroups();
   this.visualizeGeo.addGroup(0, arrayIndex, 0);
   
   this.index = index;
-
-  return layerNum;
 };
 
 GCodeRenderer.prototype.setLayer = function(layerIndex) {
   layerIndex = Math.floor(layerIndex);
 
-  var index = this.layers[layerIndex];
+  if (layerIndex < 0 || layerIndex > this.layerIndex) {
+    throw new Error("invalid layer index");
+  }
 
-  this.setIndex(index);
+  var startIndex = 0, endIndex = 0;
+  if (layerIndex > 0) {
+    endIndex = this.gcodes[this.layers[layerIndex]].vertexNum;
+    startIndex = this.gcodes[this.layers[layerIndex-1]].vertexNum;
+  }
 
-  return index;
+  // this.setIndex(index);
+
+  // this.visualizeGeo.setDrawRange();
+  this.visualizeGeo.clearGroups();
+  this.visualizeGeo.addGroup(startIndex, endIndex - startIndex, 0);
 };
 
 GCodeRenderer.prototype.setLayerHeight = function(heightIndex) {
