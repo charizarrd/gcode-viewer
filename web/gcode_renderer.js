@@ -4,7 +4,7 @@ function GCodeRenderer() {
   this.parser = new GCodeParser();
 
   var shape = [];
-  var radius = 0.2;
+  var radius = 0.05;
   var numPoints = 6;
   for ( var i = 0; i < numPoints; i ++ ) {
     var a = (i % numPoints) / numPoints * 2*Math.PI;
@@ -37,15 +37,21 @@ function GCodeRenderer() {
   //       linewidth: 2,
   //       vertexColors: THREE.VertexColors });
 
-  this.extrudeMat = new THREE.MeshStandardMaterial({color: 0xff6666});
+  this.extrudeMat = new THREE.MeshStandardMaterial({vertexColors: THREE.VertexColors});
 
   // commands to visualize
   this.index = 0;
-  this.vertices = [];
-  this.vIndex = 0;
+  // this.vertices = [];
+  this.numVertices = 0;
   this.faces = [];
-  this.colors = [];
+
   this.visualizeGeo = new THREE.BufferGeometry();
+  // size must be multiple of 3!
+  // this.visualizeGeo.addAttribute('position', new THREE.BufferAttribute(new Float32Array(44000001), 3));
+  // this.vertices = this.visualizeGeo.attributes.position.array;
+  this.vertices;
+  this.vIndex = 0;
+  this.colors;
 
   // should always be absolute coordinates stored here
   this.lastLine = {x:0, y:0, z:0, e:0, f:0};
@@ -78,12 +84,19 @@ GCodeRenderer.prototype.render = function(gcode) {
       words,
       code;
 
+
+  this.visualizeGeo.addAttribute('position', new THREE.BufferAttribute(new Float32Array(60*l), 3));
+  this.vertices = this.visualizeGeo.attributes.position.array;
+
+  this.visualizeGeo.addAttribute('color', new THREE.BufferAttribute(new Uint8Array(60*l), 3));
+  this.colors = this.visualizeGeo.attributes.color.array
+
   console.log(l);
   // l = 50000;
   // parsing
   for ( ; i < l; i++) {
     if ((i % 100000) == 0)
-      console.log(i, self.vIndex);
+      console.log(i, self.numVertices);
 
     // if (i > 500000)
     //   break;
@@ -110,7 +123,7 @@ GCodeRenderer.prototype.render = function(gcode) {
 
   // last layer
   this.gcodes[this.numGCodes] = {};
-  this.gcodes[this.numGCodes].vertexNum = this.vertices.length/3;
+  this.gcodes[this.numGCodes].vertexNum = this.faces.length;
   this.gcodes[this.numGCodes].layerNum = this.layerIndex;
 
   self.layers[self.layerIndex] = self.numGCodes;
@@ -128,19 +141,24 @@ GCodeRenderer.prototype.render = function(gcode) {
   // using Float32Array.from() always crashes the browser so copy over
   // array piece by piece...
   var l = self.faces.length;
-  var vertices = new Float32Array(self.vertices.length);
-  console.log(1);
+  // var vertices = new Float32Array(self.vertices.length);
+  // console.log(1, self.vertices.length);
   var faces = new Uint32Array(l);
   console.log(2);
-  var colors = new Uint8Array(self.vertices.length).fill(1);
+  // var colors = new Uint8Array(self.colors.length);
+  // var colors = new Uint8Array(self.vIndex).fill(1);
   console.log(3);
 
   var index = 0;
   var range = 1000000;
-  while (self.vertices.length > 0) {
-    vertices.set(self.vertices.splice(0, range), index);
-    index += range;
-  }
+  // while (self.vertices.length > 0) {
+  //   vertices.set(self.vertices.splice(0, range), index);
+  //   index += range;
+  // }
+  // while (self.colors.length > 0) {
+  //   colors.set(self.colors.splice(0, range), index);
+  //   index += range;
+  // }
   index = 0;
   while (self.faces.length > 0) {
     faces.set(self.faces.splice(0, range), index);
@@ -149,8 +167,8 @@ GCodeRenderer.prototype.render = function(gcode) {
 
   // this.vertices = vertices; // ~extra 200 mb ish
 
-  this.visualizeGeo.addAttribute('position', new THREE.BufferAttribute(vertices, 3));
-  this.visualizeGeo.addAttribute('color', new THREE.BufferAttribute(colors, 3));
+  // this.visualizeGeo.addAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  // this.visualizeGeo.addAttribute('color', new THREE.BufferAttribute(colors, 3));
   this.visualizeGeo.setIndex(new THREE.BufferAttribute(faces, 1));
   this.visualizeGeo.computeVertexNormals();
 
@@ -187,7 +205,7 @@ GCodeRenderer.prototype.gcodeHandler = function(code) {
     case "G0": case "G1":
     case "G2": case "G3":
       this.gcodes[this.numGCodes] = {};
-      this.gcodes[this.numGCodes].vertexNum = this.vertices.length/3;
+      this.gcodes[this.numGCodes].vertexNum = this.faces.length;
       this.gcodes[this.numGCodes].layerNum = this.layerIndex;
       this.getVertices(code);
       this.numGCodes += 1;
@@ -321,12 +339,12 @@ GCodeRenderer.prototype.getVertices = function(code) {
       else
         theta = endAngle - startAngle;
     }
-    var x = Math.round(theta / (Math.PI/8));
+    var x = Math.max(1, Math.round(theta / (Math.PI/8)));
 
     total = 2*x;
 
     var verts = [];
-    curve.getPoints(40).forEach(function(p) {
+    curve.getPoints(50).forEach(function(p) {
       verts.push(new THREE.Vector3(p.x, p.y, newLine.z));
     });
 
@@ -358,27 +376,32 @@ GCodeRenderer.prototype.getVertices = function(code) {
 
         for (var i = 0; i < l; i++) {
           var v = verts[i];
-          self.vertices.push(v.x);
-          self.vertices.push(v.y);
-          self.vertices.push(v.z);
+          self.vertices[self.vIndex] = v.x;
+          self.vertices[self.vIndex+1] = v.y;
+          self.vertices[self.vIndex+2] = v.z;
+          self.colors[self.vIndex] = color.r;
+          self.colors[self.vIndex+1] = color.g;
+          self.colors[self.vIndex+2] = color.b;
 
+          self.vIndex += 3;
+  
           // for triangles, verts should be in CCW order
           // if (self.vIndex >= l) {
           if (counter > 0) {
             var j = (i+1) % l;
 
-            self.faces.push(self.vIndex + j);
-            self.faces.push(self.vIndex + i);
-            self.faces.push(self.vIndex - l + i);
+            self.faces.push(self.numVertices + j);
+            self.faces.push(self.numVertices + i);
+            self.faces.push(self.numVertices - l + i);
 
-            self.faces.push(self.vIndex + j);
-            self.faces.push(self.vIndex - l + i);
-            self.faces.push(self.vIndex - l + j)
+            self.faces.push(self.numVertices + j);
+            self.faces.push(self.numVertices - l + i);
+            self.faces.push(self.numVertices - l + j)
           }
 
         }
 
-        self.vIndex += l;
+        self.numVertices += l;
         counter += 1/total;
     }
   }
