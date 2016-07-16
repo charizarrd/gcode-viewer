@@ -33,8 +33,8 @@ function GCodeRenderer() {
 
   this.extrudeMat = new THREE.MeshStandardMaterial({
     vertexColors: THREE.VertexColors,
-    metalness: 0,
-    roughness: 1
+    metalness: 0.6,
+    roughness: 0.15
   });
 
   // commands to visualize
