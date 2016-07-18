@@ -32,20 +32,30 @@ function GCodeRenderer() {
 
   this.extrudeMat = new THREE.MeshStandardMaterial({
     vertexColors: THREE.VertexColors,
-    metalness: 0,
-    roughness: 1
+    metalness: 0.5,
+    roughness: 0.5
   });
 
   // commands to visualize
   this.index = 0;
-  // this.vertices = [];
-  this.numVertices = 0;
-  this.faces = [];
 
-  this.visualizeGeo = new THREE.BufferGeometry();
-  this.vertices;
+  // this geometry is only extrusions
+  this.extrudeGeo = new THREE.BufferGeometry();
+  this.extrudeVertices;
+  this.extrudeColors;
+
+  // index into buffergeometry vector3
+  this.numVertices = 0;
+  // index into buffergeometry float arrays
   this.vIndex = 0;
-  this.colors;
+
+  this.faces = [];
+  this.fIndex = 0;
+
+  // this geometry is only for movement
+  this.motionGeo = new THREE.BufferGeometry();
+  this.motionVertices = [];
+  this.mIndex = 0;
 
   // should always be absolute coordinates stored here
   this.lastLine = {x:0, y:0, z:0, e:0, f:0};
@@ -79,14 +89,13 @@ GCodeRenderer.prototype.render = function(gcode) {
       code;
 
   // size must be multiple of 3
-  this.visualizeGeo.addAttribute('position', new THREE.BufferAttribute(new Float32Array(60*l), 3));
-  this.vertices = this.visualizeGeo.attributes.position.array;
+  this.extrudeGeo.addAttribute('position', new THREE.BufferAttribute(new Float32Array(60*l), 3));
+  this.extrudeVertices = this.extrudeGeo.attributes.position.array;
 
-  this.visualizeGeo.addAttribute('color', new THREE.BufferAttribute(new Uint8Array(60*l), 3));
-  this.colors = this.visualizeGeo.attributes.color.array
+  this.extrudeGeo.addAttribute('color', new THREE.BufferAttribute(new Float32Array(60*l), 3));
+  this.extrudeColors = this.extrudeGeo.attributes.color.array
 
   console.log(l);
-  // l = 50000;
   // parsing
   for ( ; i < l; i++) {
     if ((i % 100000) == 0)
@@ -117,25 +126,18 @@ GCodeRenderer.prototype.render = function(gcode) {
 
   // last layer
   this.gcodes[this.numGCodes] = {};
-  this.gcodes[this.numGCodes].vertexNum = this.faces.length;
+  this.gcodes[this.numGCodes].mIndex = this.mIndex;
+  this.gcodes[this.numGCodes].facesIndex = this.fIndex;
   this.gcodes[this.numGCodes].layerNum = this.layerIndex;
 
   self.layers[self.layerIndex] = self.numGCodes;
   self.currentLayerHeight = self.lastLine.z;
 
-  // if (self.currentLayerHeight in self.layerHeights) {
-  //   self.layerHeights[self.currentLayerHeight].push(self.layerIndex);
-  // } else {
-  //   self.layerHeights[self.currentLayerHeight] = [self.layerIndex];
-  // }
-  // self.layerHeightSorted = Object.keys(self.layerHeights).sort(function(a, b) {
-  //   return Number(a) - Number(b);
-  // });
-
+  // creating extrusion object
   // using Float32Array.from() always crashes the browser so copy over
   // array piece by piece...
-  var l = self.faces.length;
-  var faces = new Uint32Array(l);
+  var l = self.fIndex;
+  var faces = new Uint32Array(l*3);
 
   var index = 0;
   var range = 1000000;
@@ -144,17 +146,31 @@ GCodeRenderer.prototype.render = function(gcode) {
     index += range;
   }
 
-  this.visualizeGeo.setIndex(new THREE.BufferAttribute(faces, 1));
-  this.visualizeGeo.computeVertexNormals();
+  this.extrudeGeo.setIndex(new THREE.BufferAttribute(faces, 1));
+  this.extrudeGeo.computeVertexNormals();
 
-  var feedLine = new THREE.Mesh(this.visualizeGeo, new THREE.MultiMaterial([this.extrudeMat]));
-  self.baseObject.add(feedLine);
+  var extrusions = new THREE.Mesh(this.extrudeGeo, new THREE.MultiMaterial([this.extrudeMat]));
+  self.baseObject.add(extrusions);
+  this.extrudeGeo.addGroup(0, l, 0);
 
-  this.visualizeGeo.addGroup(0, l, 0);
+  // creating motion object
+  var verts = new Float32Array(self.mIndex*3);
+  index = 0;
+  while (self.motionVertices.length > 0) {
+    verts.set(self.motionVertices.splice(0, range), index);
+    index += range;
+  }
+
+  this.motionGeo.addAttribute('position', new THREE.BufferAttribute(verts, 3));
+  this.motionVertices = this.motionGeo.attributes.position.array;
+
+  var motion = new THREE.LineSegments(this.motionGeo, new THREE.LineBasicMaterial({color: green}));
+  self.baseObject.add(motion);
+  this.motionGeo.setDrawRange(0, this.mIndex);
 
   // Center
-  self.visualizeGeo.computeBoundingBox();
-  self.bounds = self.visualizeGeo.boundingBox;
+  self.extrudeGeo.computeBoundingBox();
+  self.bounds = self.extrudeGeo.boundingBox;
   self.center = new THREE.Vector3(
       self.bounds.min.x + ((self.bounds.max.x - self.bounds.min.x) / 2),
       self.bounds.min.y + ((self.bounds.max.y - self.bounds.min.y) / 2),
@@ -178,7 +194,8 @@ GCodeRenderer.prototype.gcodeHandler = function(code) {
     case "G0": case "G1":
     case "G2": case "G3":
       this.gcodes[this.numGCodes] = {};
-      this.gcodes[this.numGCodes].vertexNum = this.faces.length;
+      this.gcodes[this.numGCodes].mIndex = this.mIndex;
+      this.gcodes[this.numGCodes].facesIndex = this.fIndex;
       this.gcodes[this.numGCodes].layerNum = this.layerIndex;
       this.getVertices(code);
       this.numGCodes += 1;
@@ -323,80 +340,87 @@ GCodeRenderer.prototype.getVertices = function(code) {
     path = new THREE.CatmullRomCurve3(verts);
   }
 
-  if ((extrude) && (path.getLength() !== 0)) {
-    if (self.toolNum === 0) {
-      // tubeRadius = 0.35;
-      tubeRadius = newLine.e / path.getLength() * 8;
-      // console.log(tubeRadius);
-    } else {
-      tubeRadius = 0.25;
-    }
+  if (path.getLength() !== 0) {
+    if (extrude) {
+      if (self.toolNum === 0) {
+        // tubeRadius = 0.35;
+        var magicMultiplier = 8;
+        tubeRadius = newLine.e / path.getLength() * magicMultiplier;
+      } else {
+        tubeRadius = 0.25;
+      }
 
-    var counter = 0;
-    var tangent = new THREE.Vector3();
-    var axis = new THREE.Vector3();
-    while (counter <= 1) {
-        self.shape.position.copy( path.getPointAt(counter) );
+      var counter = 0;
+      var tangent = new THREE.Vector3();
+      var axis = new THREE.Vector3();
+      while (counter <= 1) {
+          self.shape.position.copy( path.getPointAt(counter) );
 
-        tangent = path.getTangentAt(counter).normalize();
+          tangent = path.getTangentAt(counter).normalize();
 
-        axis.crossVectors(self.up, tangent).normalize();
+          axis.crossVectors(self.up, tangent).normalize();
 
-        var radians = Math.acos(self.up.dot(tangent));
+          var radians = Math.acos(self.up.dot(tangent));
 
-        self.shape.quaternion.setFromAxisAngle(axis, radians);
+          self.shape.quaternion.setFromAxisAngle(axis, radians);
 
-        self.shape.updateMatrix();
+          self.shape.updateMatrix();
 
-        var verts = [];
-        self.shape.geometry.vertices.forEach(function(v) {
-          verts.push(v.clone().multiplyScalar(tubeRadius).applyMatrix4(self.shape.matrix));
-        });
-        var l = verts.length;
+          var verts = [];
+          self.shape.geometry.vertices.forEach(function(v) {
+            verts.push(v.clone().multiplyScalar(tubeRadius).applyMatrix4(self.shape.matrix));
+          });
+          var l = verts.length;
+          // console.log(self.vIndex);
 
-        for (var i = 0; i < l; i++) {
-          var v = verts[i];
-          self.vertices[self.vIndex] = v.x;
-          self.vertices[self.vIndex+1] = v.y;
-          self.vertices[self.vIndex+2] = v.z;
-          self.colors[self.vIndex] = color.r;
-          self.colors[self.vIndex+1] = color.g;
-          self.colors[self.vIndex+2] = color.b;
+          for (var i = 0; i < l; i++) {
+            var v = verts[i];
+            self.extrudeVertices[self.vIndex] = v.x;
+            self.extrudeVertices[self.vIndex+1] = v.y;
+            self.extrudeVertices[self.vIndex+2] = v.z;
+            self.extrudeColors[self.vIndex] = color.r;
+            self.extrudeColors[self.vIndex+1] = color.g;
+            self.extrudeColors[self.vIndex+2] = color.b;
 
-          self.vIndex += 3;
-  
-          // for triangles, verts should be in CCW order
-          // if (self.vIndex >= l) {
-          if (counter > 0) {
-            var j = (i+1) % l;
+            self.vIndex += 3;
+    
+            // for triangles, verts should be in CCW order
+            // if (self.vIndex >= l) {
+            if (counter > 0) {
+              var j = (i+1) % l;
 
-            self.faces.push(self.numVertices + j);
-            self.faces.push(self.numVertices + i);
-            self.faces.push(self.numVertices - l + i);
+              self.faces.push(self.numVertices + j);
+              self.faces.push(self.numVertices + i);
+              self.faces.push(self.numVertices - l + i);
 
-            self.faces.push(self.numVertices + j);
-            self.faces.push(self.numVertices - l + i);
-            self.faces.push(self.numVertices - l + j)
+              self.faces.push(self.numVertices + j);
+              self.faces.push(self.numVertices - l + i);
+              self.faces.push(self.numVertices - l + j)
+
+              self.fIndex += 6;
+            }
+
           }
 
-        }
+          self.numVertices += l;
+          counter += 1/total;
+      }
 
-        self.numVertices += l;
-        counter += 1/total;
-    }
+      // check for new layer
+      if (newLine.z != self.currentLayerHeight) { 
+        self.layers[self.layerIndex] = self.numGCodes-1;
 
-    // check for new layer
-    if (newLine.z != self.currentLayerHeight) { 
-      self.layers[self.layerIndex] = self.numGCodes-1;
-
-      // if (self.currentLayerHeight in self.layerHeights) {
-      //   self.layerHeights[self.currentLayerHeight].push(self.layerIndex);
-      // } else {
-      //   self.layerHeights[self.currentLayerHeight] = [self.layerIndex];
-      // }
-
-      self.currentLayerHeight = newLine.z;
-      self.layerIndex += 1;
+        self.currentLayerHeight = newLine.z;
+        self.layerIndex += 1;
+      }
+    } else {
+      var verts = self.motionVertices;
+      path.getPoints(total).forEach(function(p) {
+        verts.push(p.x);
+        verts.push(p.y);
+        verts.push(p.z);
+        self.mIndex += 1;
+      });
     }
   }
 
@@ -439,15 +463,15 @@ GCodeRenderer.prototype.setIndex = function(index) {
     throw new Error("invalid index");
   }
 
-  var arrayIndex = 0;
-  var layerNum = 0;
+  this.extrudeGeo.clearGroups();
+  this.motionGeo.setDrawRange(0,0);
   if (index > 0) {
-    arrayIndex = this.gcodes[index].vertexNum;
-    layerNum = this.gcodes[index].layerNum;
-  }
+    var facesIndex = this.gcodes[index].facesIndex;
+    var motionIndex = this.gcodes[index].mIndex;
 
-  this.visualizeGeo.clearGroups();
-  this.visualizeGeo.addGroup(0, arrayIndex, 0);
+    this.extrudeGeo.addGroup(0, facesIndex, 0);
+    this.motionGeo.setDrawRange(0, motionIndex);
+  }
   
   this.index = index;
 };
@@ -459,41 +483,22 @@ GCodeRenderer.prototype.setLayer = function(layerIndex) {
     throw new Error("invalid layer index");
   }
 
+  this.extrudeGeo.clearGroups();
+  this.motionGeo.setDrawRange(0,0);
+
   var startIndex = 0, endIndex = 0;
   if (layerIndex > 0) {
-    endIndex = this.gcodes[this.layers[layerIndex]].vertexNum;
-    startIndex = this.gcodes[this.layers[layerIndex-1]].vertexNum;
+    endIndex = this.gcodes[this.layers[layerIndex]].facesIndex;
+    startIndex = this.gcodes[this.layers[layerIndex-1]].facesIndex;
+    this.extrudeGeo.addGroup(startIndex, endIndex - startIndex, 0);
+
+    endIndex = this.gcodes[this.layers[layerIndex]].mIndex;
+    startIndex = this.gcodes[this.layers[layerIndex-1]].mIndex;
+    this.motionGeo.setDrawRange(startIndex, endIndex - startIndex);   
   }
 
   // this.setIndex(index);
 
-  // this.visualizeGeo.setDrawRange();
-  this.visualizeGeo.clearGroups();
-  this.visualizeGeo.addGroup(startIndex, endIndex - startIndex, 0);
 };
 
-GCodeRenderer.prototype.setLayerHeight = function(heightIndex) {
-  var self = this;
-  heightIndex = Math.floor(heightIndex);
-  if( heightIndex < 0 || heightIndex > this.layerHeightSorted.length ) {
-    throw new Error("invalid index");
-  }
-
-  this.visualizeGeo.clearGroups();
-
-  if (heightIndex === 0) {
-    self.visualizeGeo.addGroup(0, 0, 0);
-  } else {
-    heightIndex -= 1;
-    var layers = this.layerHeights[this.layerHeightSorted[heightIndex]];
-
-    layers.forEach(function(layerNum) {
-      var startIndex = 0;
-      if (layerNum > 0)
-        startIndex = self.gcodes[self.layers[layerNum-1]].vertexNum;
-      var endIndex = self.gcodes[self.layers[layerNum]].vertexNum;
-      self.visualizeGeo.addGroup(startIndex, endIndex - startIndex, 0);
-    });
-  }
-};
 

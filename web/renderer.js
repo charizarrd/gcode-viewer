@@ -67,6 +67,13 @@ function createScene(container) {
   function animate() {
     requestAnimationFrame( animate);
     stats.begin();
+
+    // if (gr) {
+    //   gr.visualizeGeo.attributes.position.needsUpdate = true;
+    //   gr.visualizeGeo.attributes.color.needsUpdate = true;
+    //   // gr.visualizeGeo.attributes.normal.needsUpdate = true;
+    // }
+
     render();
     stats.end();
 
