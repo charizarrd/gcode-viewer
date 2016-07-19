@@ -1,7 +1,16 @@
 // with indexed buffergeometry
 
 function GCodeRenderer() {
+  this.relative = false;
+  this.toolNum = 0;
+  this.solenoidOn = false;
+
   this.parser = new GCodeParser();
+  this.visualToolPaths = []; //one for each tool
+
+  // gcode command mapping to vertex number in buffergeometry and to layer num
+  this.gcodes = {};
+  this.numGCodes = 0;
 
   var shape = [];
   var radius = 0.05;
@@ -16,14 +25,8 @@ function GCodeRenderer() {
 
   this.up = new THREE.Vector3(0, 0, 1);
 
-  // gcode command mapping to vertex number in buffergeometry and to layer num
-  this.gcodes = {};
-  this.numGCodes = 0;
-
   // tracks layers based on print order
   this.layers = {}; // maps layer num to index of last gcode in that layer
-  this.layerIndex = 0;
-  this.currentLayerHeight = 0;
 
   // tracks layers based on layer height (NOTE: does not include )
   // this.layerHeights = {} // maps layer height to array of layer nums
@@ -48,12 +51,6 @@ function GCodeRenderer() {
   this.vIndex = 0;
   this.colors;
 
-  // should always be absolute coordinates stored here
-  this.lastLine = {x:0, y:0, z:0, e:0, f:0};
-  this.relative = false;
-  this.toolNum = 0;
-  this.solenoidOn = false;
-
   // this.renderer = renderer;
   this.bounds = {
     min: { x: 100000, y: 100000, z: 100000 },
@@ -65,10 +62,6 @@ function GCodeRenderer() {
 var green = new THREE.Color(0x22bb22);
 var blue = new THREE.Color(0x66ccff);
 var pink = new THREE.Color(0xff6666);
-
-GCodeRenderer.prototype.absolute = function(v1, v2) {
-    return this.relative ? v1 + v2 : v2;
-  }
 
 GCodeRenderer.prototype.render = function(gcode) {
   var self = this;
@@ -118,44 +111,41 @@ GCodeRenderer.prototype.render = function(gcode) {
 
   // last layer
   this.gcodes[this.numGCodes] = {};
-  this.gcodes[this.numGCodes].vertexNum = this.faces.length;
-  this.gcodes[this.numGCodes].layerNum = this.layerIndex;
+  // this.gcodes[this.numGCodes].vertexNum = this.faces.length;
+  // this.gcodes[this.numGCodes].layerNum = this.layerIndex;
 
-  self.layers[self.layerIndex] = self.numGCodes;
-  self.currentLayerHeight = self.lastLine.z;
-
-  // if (self.currentLayerHeight in self.layerHeights) {
-  //   self.layerHeights[self.currentLayerHeight].push(self.layerIndex);
-  // } else {
-  //   self.layerHeights[self.currentLayerHeight] = [self.layerIndex];
-  // }
-  // self.layerHeightSorted = Object.keys(self.layerHeights).sort(function(a, b) {
-  //   return Number(a) - Number(b);
-  // });
+  // self.layers[self.layerIndex] = self.numGCodes;
+  // self.currentLayerHeight = self.lastLine.z;
 
   // using Float32Array.from() always crashes the browser so copy over
   // array piece by piece...
-  var l = self.faces.length;
-  var faces = new Uint32Array(l);
+  // var l = self.faces.length;
+  // var faces = new Uint32Array(l);
 
-  var index = 0;
-  var range = 1000000;
-  while (self.faces.length > 0) {
-    faces.set(self.faces.splice(0, range), index);
-    index += range;
-  }
+  // var index = 0;
+  // var range = 1000000;
+  // while (self.faces.length > 0) {
+  //   faces.set(self.faces.splice(0, range), index);
+  //   index += range;
+  // }
 
-  this.visualizeGeo.setIndex(new THREE.BufferAttribute(faces, 1));
-  this.visualizeGeo.computeVertexNormals();
+  // this.visualizeGeo.setIndex(new THREE.BufferAttribute(faces, 1));
+  // this.visualizeGeo.computeVertexNormals();
 
-  var feedLine = new THREE.Mesh(this.visualizeGeo, new THREE.MultiMaterial([this.extrudeMat]));
-  self.baseObject.add(feedLine);
+  // var feedLine = new THREE.Mesh(this.visualizeGeo, new THREE.MultiMaterial([this.extrudeMat]));
+  // self.baseObject.add(feedLine);
 
-  this.visualizeGeo.addGroup(0, l, 0);
+  // this.visualizeGeo.addGroup(0, l, 0);
+
+  this.visualToolPaths.forEach(function(visualPath) {
+    self.baseObject.add(visualPath.getVisibleExtrusionMesh());
+    self.baseObject.add(visualPath.getTravelMovesVisual());
+  });
 
   // Center
-  self.visualizeGeo.computeBoundingBox();
-  self.bounds = self.visualizeGeo.boundingBox;
+  var geo = this.visualToolPaths[0].getVisibleExtrusionMesh().geometry;
+  geo.computeBoundingBox();
+  self.bounds = geo.boundingBox;
   self.center = new THREE.Vector3(
       self.bounds.min.x + ((self.bounds.max.x - self.bounds.min.x) / 2),
       self.bounds.min.y + ((self.bounds.max.y - self.bounds.min.y) / 2),
@@ -181,7 +171,9 @@ GCodeRenderer.prototype.gcodeHandler = function(code) {
       this.gcodes[this.numGCodes] = {};
       this.gcodes[this.numGCodes].vertexNum = this.faces.length;
       this.gcodes[this.numGCodes].layerNum = this.layerIndex;
-      this.getVertices(code);
+
+      this.moveTool(code);
+
       this.numGCodes += 1;
       break;
 
@@ -228,171 +220,113 @@ GCodeRenderer.prototype.gcodeHandler = function(code) {
   }
 };
 
-GCodeRenderer.prototype.getColor = function(extrude) {
-  if (extrude) {
-    if (this.toolNum === 0)
-      return blue;
-    else if (this.toolNum === 1)
-      return pink;
-  }
-  else
-    return green;
-};
-
-GCodeRenderer.prototype.getVertices = function(code) {
+GCodeRenderer.prototype.moveTool = function(code) {
   var self = this;
 
-  var newLine = code.params;
-  var extrude = (code.params.e !== undefined);
-  var numVerts;
+  var visualPath = this.visualPathForToolNumber(this.toolNum);
+  var shouldExtrude = this.shouldExtrude(code);
 
-  for (var p in self.lastLine) {
+  var lastPoint = visualPath.lastPoint;
+  var newPoint = this.getNewPoint(code.params, lastPoint);
+  
+  if ((code.cmd === "G2") || (code.cmd === "G3")) { //arc command
+    var clockwise = false;
+    if (code.cmd === "G2") clockwise = true;
+    
+    var points = this.getArcPoints(lastPoint, newPoint, clockwise);
+
+    points.forEach(function(point) {
+      visualPath.extendPathPolyline(point, shouldExtrude);
+    });
+
+  } else { //straight line
+
+    visualPath.extendPathPolyline(newPoint, shouldExtrude);
+  }
+};
+
+GCodeRenderer.prototype.getNewPoint = function(codeParams, lastPoint) {
+  var newPoint = codeParams;
+
+  for (var p in lastPoint) {
     switch (p) {
       case 'x': case 'y': case 'z':
-        if (newLine[p] === undefined)
-          newLine[p] = self.lastLine[p];
+        if (newPoint[p] === undefined)
+          newPoint[p] = lastPoint[p];
         else
-          newLine[p] = self.absolute(self.lastLine[p], newLine[p]);
+          newPoint[p] = this.absolute(lastPoint[p], newPoint[p]);
         break;
 
       default:
-        if (newLine[p] === undefined) {
-          newLine[p] = self.lastLine[p];
+        if (newPoint[p] === undefined) {
+          newPoint[p] = lastPoint[p];
         }
         break;
     }
   }
 
-  if ((self.toolNum === 1) && (self.solenoidOn)) {
+  return newPoint;
+};
+
+GCodeRenderer.prototype.getArcPoints = function(lastPoint, newPoint, clockwise) {
+  var points = [];
+  var currentX = lastPoint['x'];
+  var currentY = lastPoint['y'];
+  var centerX = currentX + newPoint.i;
+  var centerY = currentY + newPoint.j;
+  var radius = Math.sqrt(Math.pow(newPoint.i, 2) + Math.pow(newPoint.j, 2));
+
+  var startAngle = this.getAngle(currentX, currentY, centerX, centerY, radius);
+  var endAngle = this.getAngle(newPoint.x, newPoint.y, centerX, centerY, radius);
+
+  var curve = new THREE.EllipseCurve(
+    centerX, centerY,            // aX, always
+    radius, radius,         // xRadius, yRadius
+    startAngle, endAngle,  // aStartAngle, aEndAngle
+    clockwise,            // aClockwise
+    0                 // aRotation 
+  );
+
+  var theta;
+  if (clockwise) {
+    if (startAngle < endAngle)
+      theta = startAngle + (2*Math.PI - endAngle);
+    else
+      theta = startAngle - endAngle;
+  } else {
+    if (startAngle > endAngle)
+      theta = endAngle + (2*Math.PI - startAngle);
+    else
+      theta = endAngle - startAngle;
+  }
+  var x = Math.max(1, Math.round(theta / (Math.PI/8)));
+
+  curve.getPoints(2*x).forEach(function(p) {
+    points.push({x: p.x, y: p.y, z: newPoint.z});
+  });
+
+  return points;
+};
+
+GCodeRenderer.prototype.visualPathForToolNumber = function(toolNumber) {
+  var visualPath = this.visualToolPaths[toolNumber];
+
+  if (visualPath === null || visualPath === undefined) {
+    visualPath = new VisualPath();
+    this.visualToolPaths[toolNumber] = visualPath;
+  }
+
+  return visualPath;
+}
+
+GCodeRenderer.prototype.shouldExtrude = function(code) {
+  var extrude = (code.params.e !== undefined);
+
+  if ((this.toolNum === 1) && (this.solenoidOn)) {
     extrude = true;
   }
 
-  var color = self.getColor(extrude);
-  var path;
-  var total;
-
-  if ((code.cmd === "G0") || (code.cmd === "G1")) {
-    path = new THREE.LineCurve3(
-      new THREE.Vector3(self.lastLine.x, self.lastLine.y, self.lastLine.z),
-      new THREE.Vector3(newLine.x, newLine.y, newLine.z)
-    );
-    total = 1;
-  } else {
-    var currentX = self.lastLine['x'];
-    var currentY = self.lastLine['y'];
-    var centerX = currentX + newLine.i;
-    var centerY = currentY + newLine.j;
-    var radius = Math.sqrt(Math.pow(newLine.i, 2) + Math.pow(newLine.j, 2));
-
-    var startAngle = self.getAngle(currentX, currentY, centerX, centerY, radius);
-    var endAngle = self.getAngle(newLine.x, newLine.y, centerX, centerY, radius);
-
-    var clockwise = false;
-    if (code.cmd === "G2")
-      clockwise = true;
-
-    var curve = new THREE.EllipseCurve(
-      centerX, centerY,            // aX, aY
-      radius, radius,         // xRadius, yRadius
-      startAngle, endAngle,  // aStartAngle, aEndAngle
-      clockwise,            // aClockwise
-      0                 // aRotation 
-    );
-
-    var theta;
-    if (clockwise) {
-      if (startAngle < endAngle)
-        theta = startAngle + (2*Math.PI - endAngle);
-      else
-        theta = startAngle - endAngle;
-    } else {
-      if (startAngle > endAngle)
-        theta = endAngle + (2*Math.PI - startAngle);
-      else
-        theta = endAngle - startAngle;
-    }
-    var x = Math.max(1, Math.round(theta / (Math.PI/8)));
-
-    total = 2*x;
-
-    var verts = [];
-    curve.getPoints(50).forEach(function(p) {
-      verts.push(new THREE.Vector3(p.x, p.y, newLine.z));
-    });
-
-    path = new THREE.CatmullRomCurve3(verts);
-  }
-
-  if (extrude) {
-    var counter = 0;
-    var tangent = new THREE.Vector3();
-    var axis = new THREE.Vector3();
-    while (counter <= 1) {
-        self.shape.position.copy( path.getPointAt(counter) );
-
-        tangent = path.getTangentAt(counter).normalize();
-
-        axis.crossVectors(self.up, tangent).normalize();
-
-        var radians = Math.acos(self.up.dot(tangent));
-
-        self.shape.quaternion.setFromAxisAngle(axis, radians);
-
-        self.shape.updateMatrix();
-
-        var verts = [];
-        self.shape.geometry.vertices.forEach(function(v) {
-          verts.push(v.clone().applyMatrix4(self.shape.matrix));
-        });
-        var l = verts.length;
-
-        for (var i = 0; i < l; i++) {
-          var v = verts[i];
-          self.vertices[self.vIndex] = v.x;
-          self.vertices[self.vIndex+1] = v.y;
-          self.vertices[self.vIndex+2] = v.z;
-          self.colors[self.vIndex] = color.r;
-          self.colors[self.vIndex+1] = color.g;
-          self.colors[self.vIndex+2] = color.b;
-
-          self.vIndex += 3;
-  
-          // for triangles, verts should be in CCW order
-          // if (self.vIndex >= l) {
-          if (counter > 0) {
-            var j = (i+1) % l;
-
-            self.faces.push(self.numVertices + j);
-            self.faces.push(self.numVertices + i);
-            self.faces.push(self.numVertices - l + i);
-
-            self.faces.push(self.numVertices + j);
-            self.faces.push(self.numVertices - l + i);
-            self.faces.push(self.numVertices - l + j)
-          }
-
-        }
-
-        self.numVertices += l;
-        counter += 1/total;
-    }
-  }
-
-  // check for new layer
-  if ((extrude) && (newLine.z != self.currentLayerHeight)) { 
-    self.layers[self.layerIndex] = self.numGCodes-1;
-
-    // if (self.currentLayerHeight in self.layerHeights) {
-    //   self.layerHeights[self.currentLayerHeight].push(self.layerIndex);
-    // } else {
-    //   self.layerHeights[self.currentLayerHeight] = [self.layerIndex];
-    // }
-
-    self.currentLayerHeight = newLine.z;
-    self.layerIndex += 1;
-  }
-
-  self.lastLine = newLine;
+  return extrude;
 };
 
 GCodeRenderer.prototype.getAngle = function(x, y, centerX, centerY, radius) {
@@ -421,6 +355,21 @@ GCodeRenderer.prototype.getAngle = function(x, y, centerX, centerY, radius) {
   }
 
   return angle;
+};
+
+GCodeRenderer.prototype.absolute = function(v1, v2) {
+    return this.relative ? v1 + v2 : v2;
+};
+
+GCodeRenderer.prototype.getColor = function(extrude) {
+  if (extrude) {
+    if (this.toolNum === 0)
+      return blue;
+    else if (this.toolNum === 1)
+      return pink;
+  }
+  else
+    return green;
 };
 
 GCodeRenderer.prototype.setIndex = function(index) {
@@ -488,4 +437,3 @@ GCodeRenderer.prototype.setLayerHeight = function(heightIndex) {
     });
   }
 };
-
