@@ -40,6 +40,7 @@ function createScene(container) {
         near   = 1,
         far    = 10000;
     camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+    // camera = new THREE.OrthographicCamera( containerWidth / - 2, containerWidth / 2, containerHeight / 2, containerHeight / - 2, near, far);
     camera.position.z = 300;
 
     scene.add(camera);
