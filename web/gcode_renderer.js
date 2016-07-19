@@ -301,7 +301,9 @@ GCodeRenderer.prototype.getArcPoints = function(lastPoint, newPoint, clockwise) 
   }
   var x = Math.max(1, Math.round(theta / (Math.PI/8)));
 
-  curve.getPoints(2*x).forEach(function(p) {
+  var samples = 2*x;
+
+  curve.getPoints(samples).forEach(function(p) {
     points.push({x: p.x, y: p.y, z: newPoint.z});
   });
 
