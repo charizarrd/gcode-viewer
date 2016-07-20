@@ -369,7 +369,20 @@ GCodeRenderer.prototype.setLayer = function(layerIndex) {
 
   var index = this.layers[layerIndex];
 
-  this.setIndex(index);
+  var arrayIndex = 0;
+  var layerNum = 0;
+  var startIndex = 0;
+  if (index > 0) {
+    arrayIndex = this.gcodes[index].vertexNum;
+    layerNum = this.gcodes[index].layerNum;
+    startIndex = this.gcodes[this.layers[layerIndex-1]].vertexNum;
+  }
+
+  // this.visualizeGeo.setDrawRange();
+  this.visualizeGeo.clearGroups();
+  this.visualizeGeo.addGroup(startIndex, arrayIndex - startIndex, 0);
+  
+  this.index = index;
 
   return index;
 };

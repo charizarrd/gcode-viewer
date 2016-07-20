@@ -69,6 +69,9 @@ function GCodeRenderer() {
     max: { x:-100000, y:-100000, z:-100000 }
   };
 
+  // for filling in gaps b/t extrusions
+  this.lastNormal = null;
+
 };
 
 var green = new THREE.Color(0x22bb22);
@@ -101,7 +104,7 @@ GCodeRenderer.prototype.render = function(gcode) {
     if ((i % 100000) == 0)
       console.log(i, self.numVertices);
 
-    // if (i > 500000)
+    // if (i > 200)
     //   break;
 
     words = self.parser.parseLine(lines[i]);    
@@ -343,9 +346,9 @@ GCodeRenderer.prototype.getVertices = function(code) {
   if (path.getLength() !== 0) {
     if (extrude) {
       if (self.toolNum === 0) {
-        // tubeRadius = 0.35;
-        var magicMultiplier = 8;
-        tubeRadius = newLine.e / path.getLength() * magicMultiplier;
+        tubeRadius = 0.1;
+        // var magicMultiplier = 8;
+        // tubeRadius = newLine.e / path.getLength() * magicMultiplier;
       } else {
         tubeRadius = 0.25;
       }
@@ -357,6 +360,9 @@ GCodeRenderer.prototype.getVertices = function(code) {
           self.shape.position.copy( path.getPointAt(counter) );
 
           tangent = path.getTangentAt(counter).normalize();
+
+          // console.log(counter, path.getPointAt(counter), tangent);
+
 
           axis.crossVectors(self.up, tangent).normalize();
 
@@ -402,8 +408,66 @@ GCodeRenderer.prototype.getVertices = function(code) {
 
           }
 
+          if ((self.lastNormal !== null) && (counter === 0)) {
+            // console.log('hi?');
+            var newIndex = self.numVertices;
+            var oldIndex = (newIndex - l)*3;
+
+            var dir = self.lastNormal.clone().add(tangent).normalize();
+            var epsilon = 0.1;
+            var max_dot = 0;
+            var offset;
+            // console.log(self.lastNormal, tangent, dir);
+
+            for (var i = 0; i < l; i++) {
+              var v1 = verts[i];
+              // console.log(i);
+              for (var j = 0; j < l*3; j+= 3) {
+                var v2 = new THREE.Vector3();
+                v2.x = self.extrudeVertices[oldIndex + j];
+                v2.y = self.extrudeVertices[oldIndex + j + 1];
+                v2.z = self.extrudeVertices[oldIndex + j + 2];
+                var temp = v2.sub(v1).normalize();
+                var val = Math.abs(temp.dot(dir));
+                // console.log(temp, temp.dot(dir))
+                
+                if (val > max_dot) {
+                  max_dot = val;
+                  offset = j/3 - i;
+                }
+              }
+            }
+            // console.log(offset);
+            // offset = 2;
+            if (offset !== undefined) {
+              if (offset < 0)
+                offset += l;
+
+              var newVertIndex = newIndex;
+              var oldVertIndex = oldIndex/3;
+
+              for (var i = 0; i < l; i++) {
+                var j = (i+1) % l;
+                var k = (i + offset) % l;
+                var m = (i + offset + 1) % l;
+
+                self.faces.push(newVertIndex + j);
+                self.faces.push(newVertIndex + i);
+                self.faces.push(oldVertIndex + k);
+
+                self.faces.push(newVertIndex + j);
+                self.faces.push(oldVertIndex + k);
+                self.faces.push(oldVertIndex + m);
+
+
+                self.fIndex += 6;
+              }
+            }
+          }
+
           self.numVertices += l;
           counter += 1/total;
+          self.lastNormal = tangent.clone();
       }
 
       // check for new layer
@@ -421,6 +485,8 @@ GCodeRenderer.prototype.getVertices = function(code) {
         verts.push(p.z);
         self.mIndex += 1;
       });
+
+      self.lastNormal = null;
     }
   }
 
@@ -496,9 +562,6 @@ GCodeRenderer.prototype.setLayer = function(layerIndex) {
     startIndex = this.gcodes[this.layers[layerIndex-1]].mIndex;
     this.motionGeo.setDrawRange(startIndex, endIndex - startIndex);   
   }
-
-  // this.setIndex(index);
-
 };
 
 
