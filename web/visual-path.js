@@ -209,8 +209,8 @@ VisualPath.prototype.setVisibleCommandRange = function(first, last) {
   this.visibleLayerRangeStart = 0;
   this.visibleLayerRangeEnd = this.layers.length - 1;
 
-  this.visibleCommandRangeStart = first;
-  this.visibleCommandRangeEnd = last;
+  this.visibleCommandRangeStart = this.commands[first];
+  this.visibleCommandRangeEnd = this.commands[last];
 
   this.updateVisiblePolylineRanges();
   this.updateVisibleTubeRanges();
@@ -283,7 +283,8 @@ VisualPath.prototype.getVisibleExtrusionMesh = function() {
 
     var geo = new THREE.Geometry();
 
-    this.iteratePolylinePoints(this.extrusionRanges, function(x, y, z, pointIndex, isRangeEnd) {
+    var visibleExtrusionRanges = RangeUtil.intersectRangeSets(this.extrusionRanges, this.visiblePolylineRanges);
+    this.iteratePolylinePoints(visibleExtrusionRanges, function(x, y, z, pointIndex, isRangeEnd) {
       var vertex = new THREE.Vector3(x, y, z);
       geo.vertices.push(vertex);
     });
