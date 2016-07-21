@@ -189,7 +189,7 @@ VisualPath.prototype.updateVisiblePolylineRanges = function() {
   var layerRangeStart = this.layers[this.visibleLayerRangeStart].getFirstRangeStart();
   var layerRangeEnd = this.layers[this.visibleLayerRangeEnd].getLastRangeEnd();
 
-  this.visiblePolylineRanges = RangeUtil.unionRanges(pointRangeStart, pointRangeEnd, layerRangeStart, layerRangeEnd);
+  this.visiblePolylineRanges = RangeUtil.intersectRanges(pointRangeStart, pointRangeEnd, layerRangeStart, layerRangeEnd);
 };
 
 VisualPath.prototype.setVisibleLayerRange = function(first, last) {
@@ -307,6 +307,12 @@ VisualPath.prototype.getTravelMovesVisual = function() {
 
   if (mesh === null) {
     var geo = new THREE.Geometry();
+
+    // var positions = new Float32Array(this.polylinePoints.length);
+    // var colors = new Float32Array(this.polylinePoints.length);
+
+    // var geometry = new THREE.BufferGeometry();
+    // var material = new THREE.LineBasicMaterial({ vertexColors: THREE.VertexColors });
 
     this.iteratePolylinePoints(this.travelRanges, function(x, y, z) {
       var vertex = new THREE.Vector3(x, y, z);
