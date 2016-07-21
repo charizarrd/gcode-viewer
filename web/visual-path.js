@@ -5,7 +5,7 @@ function VisualPath() {
   //Parallel with the polylinePoints array
   //May have many points for one gcode, though, in which
   //case the gcode is repeated
-  this.commandIndices = [];
+  this.commands = [];
 
   //Polyline part types
   this.extrusionRanges = [];
@@ -58,9 +58,9 @@ VisualPath.prototype.extendPathPolyline = function(newPoint, shouldExtrude, comm
   this.polylinePoints.push(newPoint.y);
   this.polylinePoints.push(newPoint.z);
 
-  this.commandIndices.push(commandIndex);
-  this.commandIndices.push(commandIndex);
-  this.commandIndices.push(commandIndex);
+  this.commands.push(commandIndex);
+  this.commands.push(commandIndex);
+  this.commands.push(commandIndex);
 
   if (shouldExtrude) {
     this.updateLayers(newPoint, pointIndex);
@@ -183,8 +183,13 @@ VisualPath.prototype.udpateVisibleTubeRanges = function() {
 };
 
 VisualPath.prototype.updateVisiblePolylineRanges = function() {
-  //Should use visibleCommandRangeStart/End and visibleLayerRangeStart/End
-  //to fill this.visiblePolylineRanges with correct values. Eventually 
+  var pointRangeStart = this.firstIndexOfCommand(this.visibleCommandRangeStart);
+  var pointRangeEnd = this.lastIndexOfCommand(this.visibleCommandRangeEnd);
+
+  var layerRangeStart = this.layers[this.visibleLayerRangeStart].getFirstRangeStart();
+  var layerRangeEnd = this.layers[this.visibleLayerRangeEnd].getLastRangeEnd();
+
+  this.visiblePolylineRanges = RangeUtil.ORRanges(pointRangeStart, pointRangeEnd, layerRangeStart, layerRangeEnd);
 };
 
 VisualPath.prototype.setVisibleLayerRange = function(first, last) {
@@ -200,6 +205,22 @@ VisualPath.prototype.setVisibleCommandRange = function(first, last) {
   // call updateVisiblePolylineRanges();
   // call updateVisibleTubeRanges();
 };
+
+VisualPath.prototype.firstIndexOfCommand = function(commandIndex) {
+  var index = commandIndex;
+  while (this.commands[index] === this.commands[index - 1]) {
+    index--;
+  }
+  return index;
+},
+
+VisualPath.prototype.lastIndexOfCommand = function(commandIndex) {
+  var index = commandIndex;
+  while (this.commands[index] === this.commands[index + 1]) {
+    index++;
+  }
+  return index;
+},
 
 VisualPath.prototype.iteratePolylineSegments = function(polyline, ranges, func) {
   for (var i = 0; i < ranges.length; i += 2) {
@@ -290,7 +311,7 @@ VisualPath.prototype.getTravelMovesVisual = function() {
 //Should fill this.tubeVertices with the vertices of tubes following
 //all the extrusion portions of the path polyline
 VisualPath.prototype.generateTubeGeometry = function() {
-  var color = this.getColor(extrude);
+  // var color = this.getColor(extrude);
 
   // var counter = 0;
   // var tangent = new THREE.Vector3();
