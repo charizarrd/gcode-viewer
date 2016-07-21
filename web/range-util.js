@@ -24,11 +24,6 @@ RangeUtil.intersectRanges = function(range1Start, range1End, range2Start, range2
 
 RangeUtil.intersectRangeSets = function(set1, set2) {
 
-    var length = Math.max(set1.length, set2.length);
-    for (var i = 0; i < length; i++) {
-        var element = 
-    }
-
     var set1Index = 0;
     var set2Index = 0;
     var inSet1 = false;
