@@ -84,6 +84,8 @@ VisualPath.prototype.finishPathPolyline = function(pointIndex) {
   if (this.extrudedLastTime) {
     this.layers[this.lastLayerIndex].addRangeEnd(pointIndex);
   }
+
+  this.generateTubeGeometry();
 };
 
 //Used to create layers as the polyline is built up
@@ -285,7 +287,8 @@ VisualPath.prototype.getTravelMovesVisual = function() {
   return mesh;
 };
 
-//This does nothing for now
+//Should fill this.tubeVertices with the vertices of tubes following
+//all the extrusion portions of the path polyline
 VisualPath.prototype.generateTubeGeometry = function() {
   var color = this.getColor(extrude);
 
