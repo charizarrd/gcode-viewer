@@ -174,7 +174,7 @@ VisualPath.prototype.addLayer = function(pointIndex, layerIndex, height) {
   return newLayer;
 };
 
-VisualPath.prototype.udpateVisibleTubeRanges = function() {
+VisualPath.prototype.updateVisibleTubeRanges = function() {
   // clear visibleTubeVertexRanges
   // for each visiblePolylineRange
        // tubeRange = tubeIndexRangeForPolylineIndexRange(infillRange)
@@ -193,8 +193,8 @@ VisualPath.prototype.updateVisiblePolylineRanges = function() {
 };
 
 VisualPath.prototype.setVisibleLayerRange = function(first, last) {
-  this.visibleCommandRangeStart = 0;
-  this.visibleCommandRangeEnd = this.commands.length - 1;
+  this.visibleCommandRangeStart = this.commands[0];
+  this.visibleCommandRangeEnd = this.commands[this.commands.length - 1];
 
   this.visibleLayerRangeStart = first;
   this.visibleLayerRangeEnd = last;
@@ -280,18 +280,10 @@ VisualPath.prototype.getVisibleExtrusionMesh = function() {
   if (mesh === null) {
 
     var geo = new THREE.Geometry();
-
-    //uncomment to test visible layer ranges
-    // var minLayer = 300;
-    // var maxLayer = 301;
-    // var minPointIndex = this.layers[minLayer].getFirstRangeStart();
-    // var maxPointIndex = this.layers[maxLayer].getLastRangeEnd();
-
-    this.iteratePolylinePoints(this.extrusionRanges, function(x, y, z, pointIndex) {
-      // if (pointIndex >= minPointIndex && pointIndex <= maxPointIndex) {
-        var vertex = new THREE.Vector3(x, y, z);
-        geo.vertices.push(vertex);
-      // }
+    
+    this.iteratePolylinePoints(visibleExtrusionRanges, function(x, y, z, pointIndex, isRangeEnd) {
+      var vertex = new THREE.Vector3(x, y, z);
+      geo.vertices.push(vertex);
     });
 
     mesh = new THREE.Line(geo, new THREE.LineBasicMaterial({color: 0x00AAAA}));
@@ -307,12 +299,6 @@ VisualPath.prototype.getTravelMovesVisual = function() {
 
   if (mesh === null) {
     var geo = new THREE.Geometry();
-
-    // var positions = new Float32Array(this.polylinePoints.length);
-    // var colors = new Float32Array(this.polylinePoints.length);
-
-    // var geometry = new THREE.BufferGeometry();
-    // var material = new THREE.LineBasicMaterial({ vertexColors: THREE.VertexColors });
 
     this.iteratePolylinePoints(this.travelRanges, function(x, y, z) {
       var vertex = new THREE.Vector3(x, y, z);
