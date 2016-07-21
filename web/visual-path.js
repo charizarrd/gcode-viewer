@@ -85,6 +85,8 @@ VisualPath.prototype.finishPathPolyline = function(pointIndex) {
     this.layers[this.lastLayerIndex].addRangeEnd(pointIndex);
   }
 
+  this.setVisibleLayerRange(0, this.layers.length - 1);
+
   this.generateTubeGeometry();
 };
 
@@ -280,8 +282,8 @@ VisualPath.prototype.getVisibleExtrusionMesh = function() {
   if (mesh === null) {
 
     var geo = new THREE.Geometry();
-    
-    this.iteratePolylinePoints(visibleExtrusionRanges, function(x, y, z, pointIndex, isRangeEnd) {
+
+    this.iteratePolylinePoints(this.extrusionRanges, function(x, y, z, pointIndex, isRangeEnd) {
       var vertex = new THREE.Vector3(x, y, z);
       geo.vertices.push(vertex);
     });
