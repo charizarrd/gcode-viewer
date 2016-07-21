@@ -193,17 +193,25 @@ VisualPath.prototype.updateVisiblePolylineRanges = function() {
 };
 
 VisualPath.prototype.setVisibleLayerRange = function(first, last) {
-  // set visibleCommandRangeStart/End to 0, commands.length - 1
-  // set visibleLayerRangeStart/End to first, last (args to this function)
-  // call updateVisiblePolylineRanges();
-  // call updateVisibleTubeRanges();
+  this.visibleCommandRangeStart = 0;
+  this.visibleCommandRangeEnd = this.commands.length - 1;
+
+  this.visibleLayerRangeStart = first;
+  this.visibleLayerRangeEnd = last;
+
+  this.updateVisiblePolylineRanges();
+  this.updateVisibleTubeRanges();
 };
 
 VisualPath.prototype.setVisibleCommandRange = function(first, last) {
-  // set visibleLayerRangeStart/End to 0, commands.length - 1
-  // set visibleCommandRangeStart/End to first, last (args to this function)
-  // call updateVisiblePolylineRanges();
-  // call updateVisibleTubeRanges();
+  this.visibleLayerRangeStart = 0;
+  this.visibleLayerRangeEnd = this.layers.length - 1;
+
+  this.visibleCommandRangeStart = first;
+  this.visibleCommandRangeEnd = last;
+  
+  this.updateVisiblePolylineRanges();
+  this.updateVisibleTubeRanges();
 };
 
 VisualPath.prototype.firstIndexOfCommand = function(commandIndex) {
