@@ -222,7 +222,7 @@ VisualPath.prototype.firstIndexOfCommand = function(command) {
   return index;
 },
 
-VisualPath.prototype.lastIndexOfCommand = function(commandIndex) {
+VisualPath.prototype.lastIndexOfCommand = function(command) {
   var index = this.commands.length - 1;
   while (index > -1 && this.commands[index] !== command) {
     index--;
