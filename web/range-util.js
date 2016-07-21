@@ -9,25 +9,15 @@ RangeUtil.unionRanges = function(range1Start, range1End, range2Start, range2End)
 };
 
 RangeUtil.intersectRanges = function(range1Start, range1End, range2Start, range2End) {
-    var range = [];
+    var range = [0, 0];
 
-    var limit1 = 0;
-    var limit2 = 0;
+    var start = Math.max(range1Start, range2Start);
+    var end = Math.min(range1End, range2End);
 
-    if (range1Start >= range2Start && range1Start <= range2End) {
-        limit1 = range1Start;
-    } else if (range2Start >= range1Start && range2Start <= range1End) {
-        limit1 = range2Start;
-    }
+    if (end < start) { return range; }
 
-    if (range1End <= range2End && range1End >= range2Start) {
-        limit2 = range1End;
-    } if (range2End <= range1End && range2End >= range1Start) {
-        limit2 = range2End;
-    }
-
-    range[0] = limit1;
-    range[1] = limit2;
+    range[0] = start;
+    range[1] = end;
 
     return range;
 };
