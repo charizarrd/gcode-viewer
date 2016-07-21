@@ -160,7 +160,7 @@ VisualPath.prototype.updatePolylinePartRanges = function(pointIndex, extruding) 
 
 VisualPath.prototype.addLayer = function(pointIndex, layerIndex, height) {
 
-  var newLayer = new Layer()
+  var newLayer = new Layer();
 
   newLayer.addRangeStart(pointIndex);
   newLayer.height = height;
@@ -230,7 +230,9 @@ VisualPath.prototype.lastIndexOfCommand = function(command) {
   return index;
 },
 
-VisualPath.prototype.iteratePolylineSegments = function(polyline, ranges, func) {
+VisualPath.prototype.iteratePolylineSegments = function(ranges, func) {
+  var polyline = this.polylinePoints;
+
   for (var i = 0; i < ranges.length; i += 2) {
     var start = ranges[i];
     var end = ranges[i + 1];
@@ -249,7 +251,9 @@ VisualPath.prototype.iteratePolylineSegments = function(polyline, ranges, func) 
   }
 }
 
-VisualPath.prototype.iteratePolylinePoints = function(polyline, ranges, func) {
+VisualPath.prototype.iteratePolylinePoints = function(ranges, func) {
+  var polyline = this.polylinePoints;
+
   for (var i = 0; i < ranges.length; i += 2) {
     var start = ranges[i];
     var end = ranges[i + 1];
@@ -283,7 +287,7 @@ VisualPath.prototype.getVisibleExtrusionMesh = function() {
     // var minPointIndex = this.layers[minLayer].getFirstRangeStart();
     // var maxPointIndex = this.layers[maxLayer].getLastRangeEnd();
 
-    this.iteratePolylinePoints(this.polylinePoints, this.extrusionRanges, function(x, y, z, pointIndex) {
+    this.iteratePolylinePoints(this.extrusionRanges, function(x, y, z, pointIndex) {
       // if (pointIndex >= minPointIndex && pointIndex <= maxPointIndex) {
         var vertex = new THREE.Vector3(x, y, z);
         geo.vertices.push(vertex);
@@ -304,7 +308,7 @@ VisualPath.prototype.getTravelMovesVisual = function() {
   if (mesh === null) {
     var geo = new THREE.Geometry();
 
-    this.iteratePolylinePoints(this.polylinePoints, this.travelRanges, function(x, y, z) {
+    this.iteratePolylinePoints(this.travelRanges, function(x, y, z) {
       var vertex = new THREE.Vector3(x, y, z);
       geo.vertices.push(vertex);
     });
