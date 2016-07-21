@@ -1,5 +1,3 @@
-// with indexed buffergeometry
-
 function GCodeRenderer() {
   this.relative = false;
   this.toolNum = 0;
@@ -8,60 +6,16 @@ function GCodeRenderer() {
   this.parser = new GCodeParser();
   this.visualToolPaths = []; //one for each tool
 
-  // gcode command mapping to vertex number in buffergeometry and to layer num
-  this.gcodes = {};
-  this.numGCodes = 0;
-
-  var shape = [];
-  var radius = 0.05;
-  var numPoints = 6;
-  for ( var i = 0; i < numPoints; i ++ ) {
-    var a = (i % numPoints) / numPoints * 2*Math.PI;
-    shape.push(new THREE.Vector3(Math.cos(a) * radius, Math.sin(a) * radius, 0));
-  }
-  var geometry = new THREE.Geometry();
-  geometry.vertices = shape;
-  this.shape = new THREE.Line(geometry, new THREE.LineBasicMaterial());
-
-  this.up = new THREE.Vector3(0, 0, 1);
-
-  // tracks layers based on print order
-  this.layers = {}; // maps layer num to index of last gcode in that layer
-
-  // tracks layers based on layer height (NOTE: does not include )
-  // this.layerHeights = {} // maps layer height to array of layer nums
-  // this.layerHeightSorted = [];
+  this.currentCommandIndex = 0;
 
   this.baseObject = new THREE.Object3D();
 
-  this.extrudeMat = new THREE.MeshStandardMaterial({
-    vertexColors: THREE.VertexColors,
-    metalness: 0.6,
-    roughness: 0.15
-  });
-
-  // commands to visualize
-  this.index = 0;
-  // this.vertices = [];
-  this.numVertices = 0;
-  this.faces = [];
-
-  this.visualizeGeo = new THREE.BufferGeometry();
-  this.vertices;
-  this.vIndex = 0;
-  this.colors;
-
-  // this.renderer = renderer;
   this.bounds = {
     min: { x: 100000, y: 100000, z: 100000 },
     max: { x:-100000, y:-100000, z:-100000 }
   };
 
 };
-
-var green = new THREE.Color(0x22bb22);
-var blue = new THREE.Color(0x66ccff);
-var pink = new THREE.Color(0xff6666);
 
 GCodeRenderer.prototype.render = function(gcode) {
   var self = this;
@@ -71,13 +25,6 @@ GCodeRenderer.prototype.render = function(gcode) {
       l = lines.length,
       words,
       code;
-
-  // size must be multiple of 3
-  this.visualizeGeo.addAttribute('position', new THREE.BufferAttribute(new Float32Array(60*l), 3));
-  this.vertices = this.visualizeGeo.attributes.position.array;
-
-  this.visualizeGeo.addAttribute('color', new THREE.BufferAttribute(new Uint8Array(60*l), 3));
-  this.colors = this.visualizeGeo.attributes.color.array
 
   console.log(l);
   // l = 50000;
@@ -109,33 +56,9 @@ GCodeRenderer.prototype.render = function(gcode) {
   }
   console.log('hi');
 
-  // last layer
-  this.gcodes[this.numGCodes] = {};
-  // this.gcodes[this.numGCodes].vertexNum = this.faces.length;
-  // this.gcodes[this.numGCodes].layerNum = this.layerIndex;
-
-  // self.layers[self.layerIndex] = self.numGCodes;
-  // self.currentLayerHeight = self.lastLine.z;
-
-  // using Float32Array.from() always crashes the browser so copy over
-  // array piece by piece...
-  // var l = self.faces.length;
-  // var faces = new Uint32Array(l);
-
-  // var index = 0;
-  // var range = 1000000;
-  // while (self.faces.length > 0) {
-  //   faces.set(self.faces.splice(0, range), index);
-  //   index += range;
-  // }
-
-  // this.visualizeGeo.setIndex(new THREE.BufferAttribute(faces, 1));
-  // this.visualizeGeo.computeVertexNormals();
-
-  // var feedLine = new THREE.Mesh(this.visualizeGeo, new THREE.MultiMaterial([this.extrudeMat]));
-  // self.baseObject.add(feedLine);
-
-  // this.visualizeGeo.addGroup(0, l, 0);
+  this.visualToolPaths.forEach(function(visualPath) {
+    visualPath.finishPathPolyline();
+  });  
 
   this.visualToolPaths.forEach(function(visualPath) {
     self.baseObject.add(visualPath.getVisibleExtrusionMesh());
@@ -168,13 +91,8 @@ GCodeRenderer.prototype.gcodeHandler = function(code) {
     // moving and/or extruding
     case "G0": case "G1":
     case "G2": case "G3":
-      this.gcodes[this.numGCodes] = {};
-      this.gcodes[this.numGCodes].vertexNum = this.faces.length;
-      this.gcodes[this.numGCodes].layerNum = this.layerIndex;
 
       this.moveTool(code);
-
-      this.numGCodes += 1;
       break;
 
     // use absolute coords
@@ -218,6 +136,8 @@ GCodeRenderer.prototype.gcodeHandler = function(code) {
       // console.log(code.cmd);
       break;
   }
+
+  this.currentCommandIndex++;
 };
 
 GCodeRenderer.prototype.moveTool = function(code) {
@@ -236,12 +156,12 @@ GCodeRenderer.prototype.moveTool = function(code) {
     var points = this.getArcPoints(lastPoint, newPoint, clockwise);
 
     points.forEach(function(point) {
-      visualPath.extendPathPolyline(point, shouldExtrude);
+      visualPath.extendPathPolyline(point, shouldExtrude, this.currentCommandIndex);
     });
 
   } else { //straight line
 
-    visualPath.extendPathPolyline(newPoint, shouldExtrude);
+    visualPath.extendPathPolyline(newPoint, shouldExtrude, this.currentCommandIndex);
   }
 };
 
@@ -363,79 +283,10 @@ GCodeRenderer.prototype.absolute = function(v1, v2) {
     return this.relative ? v1 + v2 : v2;
 };
 
-GCodeRenderer.prototype.getColor = function(extrude) {
-  if (extrude) {
-    if (this.toolNum === 0)
-      return blue;
-    else if (this.toolNum === 1)
-      return pink;
-  }
-  else
-    return green;
+GCodeRenderer.prototype.setVisibleLayerRange = function(layerIndex) {
+  //calls 'setVisibleLayerRange' on each VisualPath
 };
 
-GCodeRenderer.prototype.setIndex = function(index) {
-  var self = this;
-  index = Math.floor(index);
-  if( this.index == index ) { return; }
-  if( index < 0 || index > this.numGCodes ) {
-    throw new Error("invalid index");
-  }
-
-  var arrayIndex = 0;
-  var layerNum = 0;
-  if (index > 0) {
-    arrayIndex = this.gcodes[index].vertexNum;
-    layerNum = this.gcodes[index].layerNum;
-  }
-
-  this.visualizeGeo.clearGroups();
-  this.visualizeGeo.addGroup(0, arrayIndex, 0);
-  
-  this.index = index;
-};
-
-GCodeRenderer.prototype.setLayer = function(layerIndex) {
-  layerIndex = Math.floor(layerIndex);
-
-  if (layerIndex < 0 || layerIndex > this.layerIndex) {
-    throw new Error("invalid layer index");
-  }
-
-  var startIndex = 0, endIndex = 0;
-  if (layerIndex > 0) {
-    endIndex = this.gcodes[this.layers[layerIndex]].vertexNum;
-    startIndex = this.gcodes[this.layers[layerIndex-1]].vertexNum;
-  }
-
-  // this.setIndex(index);
-
-  // this.visualizeGeo.setDrawRange();
-  this.visualizeGeo.clearGroups();
-  this.visualizeGeo.addGroup(startIndex, endIndex - startIndex, 0);
-};
-
-GCodeRenderer.prototype.setLayerHeight = function(heightIndex) {
-  var self = this;
-  heightIndex = Math.floor(heightIndex);
-  if( heightIndex < 0 || heightIndex > this.layerHeightSorted.length ) {
-    throw new Error("invalid index");
-  }
-
-  this.visualizeGeo.clearGroups();
-
-  if (heightIndex === 0) {
-    self.visualizeGeo.addGroup(0, 0, 0);
-  } else {
-    heightIndex -= 1;
-    var layers = this.layerHeights[this.layerHeightSorted[heightIndex]];
-
-    layers.forEach(function(layerNum) {
-      var startIndex = 0;
-      if (layerNum > 0)
-        startIndex = self.gcodes[self.layers[layerNum-1]].vertexNum;
-      var endIndex = self.gcodes[self.layers[layerNum]].vertexNum;
-      self.visualizeGeo.addGroup(startIndex, endIndex - startIndex, 0);
-    });
-  }
+GCodeRenderer.prototype.setVisibleCommandRange = function(layerIndex) {
+  //calls 'setVisibleCommandRange' on each VisualPath
 };
