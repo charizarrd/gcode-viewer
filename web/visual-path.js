@@ -189,7 +189,7 @@ VisualPath.prototype.updateVisiblePolylineRanges = function() {
   var layerRangeStart = this.layers[this.visibleLayerRangeStart].getFirstRangeStart();
   var layerRangeEnd = this.layers[this.visibleLayerRangeEnd].getLastRangeEnd();
 
-  this.visiblePolylineRanges = RangeUtil.ORRanges(pointRangeStart, pointRangeEnd, layerRangeStart, layerRangeEnd);
+  this.visiblePolylineRanges = RangeUtil.unionRanges(pointRangeStart, pointRangeEnd, layerRangeStart, layerRangeEnd);
 };
 
 VisualPath.prototype.setVisibleLayerRange = function(first, last) {
