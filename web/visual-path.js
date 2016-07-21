@@ -209,23 +209,23 @@ VisualPath.prototype.setVisibleCommandRange = function(first, last) {
 
   this.visibleCommandRangeStart = first;
   this.visibleCommandRangeEnd = last;
-  
+
   this.updateVisiblePolylineRanges();
   this.updateVisibleTubeRanges();
 };
 
-VisualPath.prototype.firstIndexOfCommand = function(commandIndex) {
-  var index = commandIndex;
-  while (this.commands[index] === this.commands[index - 1]) {
-    index--;
+VisualPath.prototype.firstIndexOfCommand = function(command) {
+  var index = 0;
+  while (index < this.commands.length && this.commands[index] !== command) {
+    index++;
   }
   return index;
 },
 
 VisualPath.prototype.lastIndexOfCommand = function(commandIndex) {
-  var index = commandIndex;
-  while (this.commands[index] === this.commands[index + 1]) {
-    index++;
+  var index = this.commands.length - 1;
+  while (index > -1 && this.commands[index] !== command) {
+    index--;
   }
   return index;
 },
