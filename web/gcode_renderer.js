@@ -33,8 +33,8 @@ GCodeRenderer.prototype.render = function(gcode) {
     if ((i % 100000) == 0)
       console.log(i, self.numVertices);
 
-    // if (i > 500000)
-    //   break;
+    if (i > 100)
+      break;
 
     words = self.parser.parseLine(lines[i]);    
     code = {};
@@ -69,6 +69,7 @@ GCodeRenderer.prototype.render = function(gcode) {
   var geo = this.visualToolPaths[0].getVisibleExtrusionMesh().geometry;
   geo.computeBoundingBox();
   self.bounds = geo.boundingBox;
+  console.log(geo.boundingBox);
   self.center = new THREE.Vector3(
       self.bounds.min.x + ((self.bounds.max.x - self.bounds.min.x) / 2),
       self.bounds.min.y + ((self.bounds.max.y - self.bounds.min.y) / 2),
@@ -82,6 +83,9 @@ GCodeRenderer.prototype.render = function(gcode) {
 
   self.baseObject.position = self.center.multiplyScalar(-scale);
   self.baseObject.scale.multiplyScalar(scale);
+
+  console.log(self.baseObject.position);
+  console.log(self.baseObject.scale);
 
   return self.baseObject;
 };
@@ -224,7 +228,7 @@ GCodeRenderer.prototype.getArcPoints = function(lastPoint, newPoint, clockwise) 
   var samples = 2*x;
 
   curve.getPoints(samples).forEach(function(p) {
-    points.push({x: p.x, y: p.y, z: newPoint.z});
+    points.push({x: p.x, y: p.y, z: newPoint.z, e: newPoint.e/samples});
   });
 
   return points;

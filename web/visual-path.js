@@ -8,6 +8,10 @@ function VisualPath() {
   //referring to the original gcode file.
   this.commands = [];
 
+  //Parallel with the polylinePoints array (divided by 3)
+  //E value from gcode command, needed for tube geometry radius
+  this.extrusionValues = [];
+
   //Polyline part types
   this.extrusionRanges = [];
   this.travelRanges = [];
@@ -20,6 +24,8 @@ function VisualPath() {
   //The vertices of the tube surrounding the entire polyline
   //(except portions corresponding to travel moves)
   this.tubeVertices = [];
+  this.tubeFaces = [];
+  this.numShapePoints = 6;
 
   this.visibleLayerRangeStart = 0;
   this.visibleLayerRangeEnd = 0;
@@ -48,11 +54,10 @@ function VisualPath() {
 
   //Not sure if this first point should actually be included or not
   //Also, should check whether it's a travel or extrusion
-  this.extendPathPolyline(this.lastPoint, this.extrudedLastTime);
+  // this.extendPathPolyline(this.lastPoint, this.extrudedLastTime);
 };
 
 VisualPath.prototype.extendPathPolyline = function(newPoint, shouldExtrude, commandIndex) {
-
   var pointIndex = this.polylinePoints.length;
 
   this.polylinePoints.push(newPoint.x);
@@ -62,6 +67,8 @@ VisualPath.prototype.extendPathPolyline = function(newPoint, shouldExtrude, comm
   this.commands.push(commandIndex);
   this.commands.push(commandIndex);
   this.commands.push(commandIndex);
+
+  this.extrusionValues.push(newPoint.e);
 
   if (shouldExtrude) {
     this.updateLayers(newPoint, pointIndex);
@@ -73,7 +80,9 @@ VisualPath.prototype.extendPathPolyline = function(newPoint, shouldExtrude, comm
   this.extrudedLastTime = shouldExtrude;
 };
 
-VisualPath.prototype.finishPathPolyline = function(pointIndex) {
+VisualPath.prototype.finishPathPolyline = function() {
+  var pointIndex = this.polylinePoints.length - this.AXES;
+
   //Finish extrusion/travel ranges
   if (this.extrudedLastTime) {
     this.extrusionRanges.push(pointIndex);
@@ -88,7 +97,7 @@ VisualPath.prototype.finishPathPolyline = function(pointIndex) {
 
   this.setVisibleLayerRange(0, this.layers.length - 1);
 
-  this.generateTubeGeometry();
+  // this.generateTubeGeometry();
 };
 
 //Used to create layers as the polyline is built up
@@ -142,16 +151,21 @@ VisualPath.prototype.updateLayers = function(newPoint, pointIndex) {
 //Used to mark off travel moves and extrusion for now, but might expand
 //to track ranges for infill/perimeters also
 VisualPath.prototype.updatePolylinePartRanges = function(pointIndex, extruding) {
-
   var startingTravel = (this.extrudedLastTime || pointIndex === 0) && !extruding;
   var startingExtrusion = (!this.extrudedLastTime || pointIndex === 0) && extruding;
   var endingExtrusion = startingTravel && pointIndex > 0;
   var endingTravel = startingExtrusion && pointIndex > 0;
 
   if (startingTravel) {
-    this.travelRanges.push(pointIndex);
+    if (pointIndex === 0)
+      this.travelRanges.push(pointIndex);
+    else
+      this.travelRanges.push(pointIndex - 3);
   } else if (startingExtrusion) {
-    this.extrusionRanges.push(pointIndex);
+    if (pointIndex === 0)
+      this.extrusionRanges.push(pointIndex);
+    else
+      this.extrusionRanges.push(pointIndex - 3);
   }
 
   if (endingTravel) {
@@ -266,7 +280,8 @@ VisualPath.prototype.iteratePolylinePoints = function(ranges, func) {
         var y = polyline[j + 1];
         var z = polyline[j + 2];
 
-        var isRangeEnd = i % 2 !== 0;
+        // var isRangeEnd = i % 2 !== 0;
+        var isRangeEnd = (j == end);
         func(x, y, z, j, isRangeEnd);
     }
   }
@@ -282,15 +297,50 @@ VisualPath.prototype.getVisibleExtrusionMesh = function() {
 
   if (mesh === null) {
 
-    var geo = new THREE.Geometry();
+    // var geo = new THREE.Geometry();
+    var geo = new THREE.BufferGeometry();
+
+    var numExtrudeVertices = 0;
+    for (var i = 0; i < this.extrusionRanges.length; i += 2) {
+      var start = this.extrusionRanges[i];
+      var end = this.extrusionRanges[i + 1];
+
+      numExtrudeVertices += (end + 3 - start);
+    }
+
+    var numTubeVertices = 2*self.numShapePoints * numExtrudeVertices;
+    var numFaces = numTubeVertices;
+
+    geo.addAttribute('position', new THREE.BufferAttribute(new Float32Array(numTubeVertices), 3));
+    this.tubeVertices = geo.attributes.position.array;
+
+    geo.setIndex(new THREE.BufferAttribute(new Uint32Array(numFaces), 1));
+    this.tubeFaces = geo.getIndex().array;
+    // this.tubeFaces = [];
+    this.generateTubeGeometry();
 
     var visibleExtrusionRanges = RangeUtil.intersectRangeSets(this.extrusionRanges, this.visiblePolylineRanges);
-    this.iteratePolylinePoints(visibleExtrusionRanges, function(x, y, z, pointIndex, isRangeEnd) {
-      var vertex = new THREE.Vector3(x, y, z);
-      geo.vertices.push(vertex);
+
+    // this.iteratePolylinePoints(this.polylinePoints, this.extrusionRanges, function(x, y, z, pointIndex) {
+    //   // if (pointIndex >= minPointIndex && pointIndex <= maxPointIndex) {
+    //     var vertex = new THREE.Vector3(x, y, z);
+    //     geo.vertices.push(vertex);
+    //   // }
+    // });
+
+    // mesh = new THREE.Line(geo, new THREE.LineBasicMaterial({color: 0x00AAAA}));
+
+    geo.computeVertexNormals();
+
+    var extrudeMat = new THREE.MeshStandardMaterial({
+      color: 0x00AAAA,
+      metalness: 0.5,
+      roughness: 0.5
     });
 
-    mesh = new THREE.Line(geo, new THREE.LineBasicMaterial({color: 0x00AAAA}));
+    mesh = new THREE.Mesh(geo, extrudeMat);
+    // mesh = new THREE.Mesh(geo, new THREE.MultiMaterial([extrudeMat]));
+    // geo.addGroup(0, this.tubeFaces.length, 0);
     this.extrusionMesh = mesh;
   }
 
@@ -316,61 +366,177 @@ VisualPath.prototype.getTravelMovesVisual = function() {
   return mesh;
 };
 
+// TODO: should probably be passed in 
+VisualPath.prototype.calculateExtrusionHeight = function(extrusionValue, pathLength) {
+  var extrusionWidth = 0.35;
+  var filamentDiameter = 1.75;
+  var volume = extrusionValue * Math.PI * Math.pow((filamentDiameter/2), 2);
+  var crossArea = volume / pathLength;
+  var a = (Math.PI/4 - 1);
+  var b = extrusionWidth;
+  var c = -crossArea;
+  var root1 = (-b + Math.sqrt(Math.pow(b,2) - 4*a*c)) / (2*a);
+  var root2 = (-b - Math.sqrt(Math.pow(b,2) - 4*a*c)) / (2*a);
+  return Math.min(root1, root2);
+}
+
 //Should fill this.tubeVertices with the vertices of tubes following
 //all the extrusion portions of the path polyline
 VisualPath.prototype.generateTubeGeometry = function() {
-  // var color = this.getColor(extrude);
+  var self = this;
 
-  // var counter = 0;
-  // var tangent = new THREE.Vector3();
-  // var axis = new THREE.Vector3();
-  // while (counter <= 1) {
-  //     self.shape.position.copy( path.getPointAt(counter) );
+  // Create circle shape to trace around polyline path
+  var shapeVerts = [];
+  var numShapePoints = this.numShapePoints;
+  for ( var i = 0; i < numShapePoints; i ++ ) {
+    var a = (i % numShapePoints) / numShapePoints * 2*Math.PI;
+    shapeVerts.push(new THREE.Vector3(Math.cos(a), Math.sin(a), 0));
+  }
+  var geometry = new THREE.Geometry();
+  geometry.vertices = shapeVerts;
+  var shape = new THREE.Line(geometry, new THREE.LineBasicMaterial());
 
-  //     tangent = path.getTangentAt(counter).normalize();
+  var tangent = new THREE.Vector3();
+  var axis = new THREE.Vector3();
+  var up = new THREE.Vector3(0, 0, 1);
 
-  //     axis.crossVectors(self.up, tangent).normalize();
+  var numTubeVertices = 0;
+  var tubeVerticesIndex = 0;
+  var tubeFacesIndex = 0;
+  var lastPoint = null;
+  var lastNormal = null;
 
-  //     var radians = Math.acos(self.up.dot(tangent));
+  this.iteratePolylinePoints(this.polylinePoints, this.extrusionRanges, function(x, y, z, pointIndex, isRangeEnd) {
+      var currentPoint = new THREE.Vector3(x, y, z);
 
-  //     self.shape.quaternion.setFromAxisAngle(axis, radians);
+      if ((lastPoint !== null) && !(lastPoint.equals(currentPoint))) {
+        // connect currentPoint to lastPoint and generate tube
 
-  //     self.shape.updateMatrix();
+        tangent = currentPoint.clone().sub(lastPoint).normalize();
+        axis.crossVectors(up, tangent).normalize();
+        var radians = Math.acos(up.dot(tangent));
+        shape.quaternion.setFromAxisAngle(axis, radians);
 
-  //     var verts = [];
-  //     self.shape.geometry.vertices.forEach(function(v) {
-  //       verts.push(v.clone().applyMatrix4(self.shape.matrix));
-  //     });
-  //     var l = verts.length;
+        var extrusionValue = self.extrusionValues[pointIndex/3];
+        var pathLength = lastPoint.distanceTo(currentPoint);
+        // var tubeRadius = self.calculateExtrusionHeight(extrusionValue, pathLength);
+        var tubeRadius = 0.2;
+        shape.scale.x = tubeRadius;
+        shape.scale.y = tubeRadius;
+        shape.scale.z = tubeRadius;
 
-  //     for (var i = 0; i < l; i++) {
-  //       var v = verts[i];
-  //       self.vertices[self.vIndex] = v.x;
-  //       self.vertices[self.vIndex+1] = v.y;
-  //       self.vertices[self.vIndex+2] = v.z;
-  //       self.colors[self.vIndex] = color.r;
-  //       self.colors[self.vIndex+1] = color.g;
-  //       self.colors[self.vIndex+2] = color.b;
+        // add shape at lastPoint
+        shape.position.copy(lastPoint);
+        shape.updateMatrix();
 
-  //       self.vIndex += 3;
+        shapeVerts = [];
+        shape.geometry.vertices.forEach(function(v) {
+          shapeVerts.push(v.clone().applyMatrix4(shape.matrix));
+        });
 
-  //       // for triangles, verts should be in CCW order
-  //       // if (self.vIndex >= l) {
-  //       if (counter > 0) {
-  //         var j = (i+1) % l;
+        for (var i = 0; i < numShapePoints; i++) {
+          var v = shapeVerts[i];
+          self.tubeVertices[tubeVerticesIndex] = v.x;
+          self.tubeVertices[tubeVerticesIndex+1] = v.y;
+          self.tubeVertices[tubeVerticesIndex+2] = v.z;
 
-  //         self.faces.push(self.numVertices + j);
-  //         self.faces.push(self.numVertices + i);
-  //         self.faces.push(self.numVertices - l + i);
+          tubeVerticesIndex += 3;
+        }
+        numTubeVertices += numShapePoints;
 
-  //         self.faces.push(self.numVertices + j);
-  //         self.faces.push(self.numVertices - l + i);
-  //         self.faces.push(self.numVertices - l + j)
-  //       }
+        // add shape at currentPoint
+        shape.position.copy(currentPoint);
+        shape.updateMatrix();
 
-  //     }
+        shapeVerts = [];
+        shape.geometry.vertices.forEach(function(v) {
+          shapeVerts.push(v.clone().applyMatrix4(shape.matrix));
+        });
+        for (var i = 0; i < numShapePoints; i++) {
+          var v = shapeVerts[i];
+          self.tubeVertices[tubeVerticesIndex] = v.x;
+          self.tubeVertices[tubeVerticesIndex+1] = v.y;
+          self.tubeVertices[tubeVerticesIndex+2] = v.z;
 
-  //     self.numVertices += l;
-  //     counter += 1/total;
-  // } 
+          if (isNaN(v.x) || isNaN(v.y) || isNaN(v.z))
+            console.log(v);
+
+          tubeVerticesIndex += 3;
+  
+          // verts should be in CCW order
+          var j = (i+1) % numShapePoints;
+
+          self.tubeFaces[tubeFacesIndex] = numTubeVertices + j;
+          self.tubeFaces[tubeFacesIndex+1] = numTubeVertices + i;
+          self.tubeFaces[tubeFacesIndex+2] = numTubeVertices - numShapePoints + i;
+
+          self.tubeFaces[tubeFacesIndex+3] = numTubeVertices + j;
+          self.tubeFaces[tubeFacesIndex+4] = numTubeVertices - numShapePoints + i;
+          self.tubeFaces[tubeFacesIndex+5] = numTubeVertices - numShapePoints + j;
+
+          tubeFacesIndex += 6;
+        }
+
+        // Add faces to connect start of next tube to end of last tube
+        if (lastNormal !== null) {
+          var oldIndex = (numTubeVertices - numShapePoints)*3; // index into self.tubeVertices of start of last shape
+
+          var direction = lastNormal.clone().add(tangent).normalize();
+          var maxDot = 0;
+          var offset;
+
+          for (var i = 0; i < numShapePoints; i++) {
+            var v1 = shapeVerts[i];
+            for (var j = 0; j < numShapePoints*3; j+= 3) {
+              var v2 = new THREE.Vector3();
+              v2.x = self.tubeVertices[oldIndex + j];
+              v2.y = self.tubeVertices[oldIndex + j + 1];
+              v2.z = self.tubeVertices[oldIndex + j + 2];
+
+              var diff = v2.sub(v1).normalize();
+              var val = Math.abs(diff.dot(direction));
+              
+              if (val > maxDot) {
+                maxDot = val;
+                offset = j/3 - i;
+              }
+            }
+          }
+
+          if (offset !== undefined) {
+            if (offset < 0)
+              offset += numShapePoints;
+
+            var newIndex = numTubeVertices; // index of start vertex of current shape
+            oldIndex = oldIndex/3;          // index of start vertex of last shape
+
+            for (var i = 0; i < numShapePoints; i++) {
+              var j = (i+1) % numShapePoints;
+              var k = (i + offset) % numShapePoints;
+              var m = (i + offset + 1) % numShapePoints;
+
+              self.tubeFaces[tubeFacesIndex] = newIndex + j;
+              self.tubeFaces[tubeFacesIndex+1] = newIndex + i;
+              self.tubeFaces[tubeFacesIndex+2] = oldIndex + k;
+
+              self.tubeFaces[tubeFacesIndex+3] = newIndex + j;
+              self.tubeFaces[tubeFacesIndex+4] = oldIndex + k;
+              self.tubeFaces[tubeFacesIndex+5] = oldIndex + m;
+
+              tubeFacesIndex += 6;
+            }
+          }
+        }
+
+        numTubeVertices += numShapePoints;
+        lastNormal = tangent.clone();
+      }
+
+      if (isRangeEnd) {
+        lastPoint = null; //reset to null to indicate it's a new extrusion
+        lastNormal = null;
+      }
+      else
+        lastPoint = currentPoint;
+  });
 };
