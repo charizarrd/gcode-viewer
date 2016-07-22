@@ -4,7 +4,8 @@ function VisualPath() {
 
   //Parallel with the polylinePoints array
   //May have many points for one gcode, though, in which
-  //case the gcode is repeated
+  //case the gcode is repeated. Actually holds line numbers
+  //referring to the original gcode file.
   this.commands = [];
 
   //Polyline part types
