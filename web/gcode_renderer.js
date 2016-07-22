@@ -33,8 +33,8 @@ GCodeRenderer.prototype.render = function(gcode) {
     if ((i % 100000) == 0)
       console.log(i, self.numVertices);
 
-    if (i > 100)
-      break;
+    // if (i > 100)
+    //   break;
 
     words = self.parser.parseLine(lines[i]);    
     code = {};

@@ -406,7 +406,7 @@ VisualPath.prototype.generateTubeGeometry = function() {
   var lastPoint = null;
   var lastNormal = null;
 
-  this.iteratePolylinePoints(this.polylinePoints, this.extrusionRanges, function(x, y, z, pointIndex, isRangeEnd) {
+  this.iteratePolylinePoints(this.extrusionRanges, function(x, y, z, pointIndex, isRangeEnd) {
       var currentPoint = new THREE.Vector3(x, y, z);
 
       if ((lastPoint !== null) && !(lastPoint.equals(currentPoint))) {
@@ -476,17 +476,22 @@ VisualPath.prototype.generateTubeGeometry = function() {
 
           tubeFacesIndex += 6;
         }
+        numTubeVertices += numShapePoints;
 
         // Add faces to connect start of next tube to end of last tube
         if (lastNormal !== null) {
-          var oldIndex = (numTubeVertices - numShapePoints)*3; // index into self.tubeVertices of start of last shape
-
+          var oldIndex = (numTubeVertices - 3*numShapePoints)*3; // index into self.tubeVertices of end of last tube
+          var newIndex = (numTubeVertices - 2*numShapePoints)*3; // index into self.tubeVertices of start of current tube
+          
           var direction = lastNormal.clone().add(tangent).normalize();
           var maxDot = 0;
           var offset;
 
-          for (var i = 0; i < numShapePoints; i++) {
-            var v1 = shapeVerts[i];
+          for (var i = 0; i < numShapePoints*3; i+=3) {
+            var v1 = new THREE.Vector3();
+            v1.x = self.tubeVertices[oldIndex + i];
+            v1.y = self.tubeVertices[oldIndex + i + 1];
+            v1.z = self.tubeVertices[oldIndex + i + 2];
             for (var j = 0; j < numShapePoints*3; j+= 3) {
               var v2 = new THREE.Vector3();
               v2.x = self.tubeVertices[oldIndex + j];
@@ -498,7 +503,7 @@ VisualPath.prototype.generateTubeGeometry = function() {
               
               if (val > maxDot) {
                 maxDot = val;
-                offset = j/3 - i;
+                offset = j/3 - i/3;
               }
             }
           }
@@ -507,8 +512,8 @@ VisualPath.prototype.generateTubeGeometry = function() {
             if (offset < 0)
               offset += numShapePoints;
 
-            var newIndex = numTubeVertices; // index of start vertex of current shape
-            oldIndex = oldIndex/3;          // index of start vertex of last shape
+            newIndex = newIndex/3; // index of start vertex of current tube
+            oldIndex = oldIndex/3;          // index of end vertex of last tube
 
             for (var i = 0; i < numShapePoints; i++) {
               var j = (i+1) % numShapePoints;
@@ -527,8 +532,6 @@ VisualPath.prototype.generateTubeGeometry = function() {
             }
           }
         }
-
-        numTubeVertices += numShapePoints;
         lastNormal = tangent.clone();
       }
 
