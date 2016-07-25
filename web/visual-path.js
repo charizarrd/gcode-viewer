@@ -520,9 +520,9 @@ VisualPath.prototype.generateTubeGeometry = function() {
 
           for (var i = 0; i < numShapePoints*3; i+=3) {
             var v1 = new THREE.Vector3();
-            v1.x = self.tubeVertices[oldIndex + i];
-            v1.y = self.tubeVertices[oldIndex + i + 1];
-            v1.z = self.tubeVertices[oldIndex + i + 2];
+            v1.x = self.tubeVertices[newIndex + i];
+            v1.y = self.tubeVertices[newIndex + i + 1];
+            v1.z = self.tubeVertices[newIndex + i + 2];
             for (var j = 0; j < numShapePoints*3; j+= 3) {
               var v2 = new THREE.Vector3();
               v2.x = self.tubeVertices[oldIndex + j];
