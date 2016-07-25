@@ -61,7 +61,7 @@ GCodeRenderer.prototype.render = function(gcode) {
   });  
 
   this.visualToolPaths.forEach(function(visualPath) {
-    self.baseObject.add(visualPath.getVisibleExtrusionMesh());
+    // self.baseObject.add(visualPath.getVisibleExtrusionMesh());
     self.baseObject.add(visualPath.getTravelMovesVisual());
   });
 
@@ -69,7 +69,6 @@ GCodeRenderer.prototype.render = function(gcode) {
   var geo = this.visualToolPaths[0].getVisibleExtrusionMesh().geometry;
   geo.computeBoundingBox();
   self.bounds = geo.boundingBox;
-  console.log(geo.boundingBox);
   self.center = new THREE.Vector3(
       self.bounds.min.x + ((self.bounds.max.x - self.bounds.min.x) / 2),
       self.bounds.min.y + ((self.bounds.max.y - self.bounds.min.y) / 2),
@@ -83,9 +82,6 @@ GCodeRenderer.prototype.render = function(gcode) {
 
   self.baseObject.position = self.center.multiplyScalar(-scale);
   self.baseObject.scale.multiplyScalar(scale);
-
-  console.log(self.baseObject.position);
-  console.log(self.baseObject.scale);
 
   return self.baseObject;
 };

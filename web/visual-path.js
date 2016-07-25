@@ -291,6 +291,7 @@ VisualPath.prototype.iteratePolylinePoints = function(ranges, func) {
 //NOTE: the debug line rendering also has an issue: since we're
 //making only one THREE.Line, whenever there's a gap (because a 
 //travel move took place), the line is just extended across the gap.
+// charz: I think I fixed this but leaving this comment just in case...
 VisualPath.prototype.getVisibleExtrusionMesh = function() {
   var self = this;
   var mesh = this.extrusionMesh;
@@ -309,7 +310,7 @@ VisualPath.prototype.getVisibleExtrusionMesh = function() {
     }
 
     var numTubeVertices = 2*self.numShapePoints * numExtrudeVertices;
-    var numFaces = numTubeVertices;
+    var numFaces = 2*numTubeVertices;
 
     geo.addAttribute('position', new THREE.BufferAttribute(new Float32Array(numTubeVertices), 3));
     this.tubeVertices = geo.attributes.position.array;
@@ -354,12 +355,22 @@ VisualPath.prototype.getTravelMovesVisual = function() {
   if (mesh === null) {
     var geo = new THREE.Geometry();
 
-    this.iteratePolylinePoints(this.travelRanges, function(x, y, z) {
+    var lastVertex = null;
+    this.iteratePolylinePoints(this.travelRanges, function(x, y, z, pointIndex, isRangeEnd) {
       var vertex = new THREE.Vector3(x, y, z);
-      geo.vertices.push(vertex);
+
+      if ((lastVertex !== null) && !(lastVertex.equals(vertex))) {
+        geo.vertices.push(lastVertex);
+        geo.vertices.push(vertex);  
+      }
+
+      if (isRangeEnd)
+        lastVertex = null;
+      else
+        lastVertex = vertex.clone();      
     });
 
-    mesh = new THREE.Line(geo, new THREE.LineBasicMaterial({color: 0xFF0000}));
+    mesh = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({color: 0xFF0000}));
     this.travelMovesLine = mesh;
   }
 
