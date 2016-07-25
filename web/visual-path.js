@@ -353,15 +353,35 @@ VisualPath.prototype.getTravelMovesVisual = function() {
   var mesh = this.travelMovesLine;
 
   if (mesh === null) {
-    var geo = new THREE.Geometry();
+    // var geo = new THREE.Geometry();
+    var geo = new THREE.BufferGeometry();
+
+    var numTravelVertices = 0;
+    for (var i = 0; i < this.travelRanges.length; i += 2) {
+      var start = this.travelRanges[i];
+      var end = this.travelRanges[i + 1];
+
+      numTravelVertices += (end + 3 - start);
+    }
+
+    geo.addAttribute('position', new THREE.BufferAttribute(new Float32Array(2*numTravelVertices), 3));
+    var travelVertices = geo.attributes.position.array;
+    var vertIndex = 0;
 
     var lastVertex = null;
     this.iteratePolylinePoints(this.travelRanges, function(x, y, z, pointIndex, isRangeEnd) {
       var vertex = new THREE.Vector3(x, y, z);
 
       if ((lastVertex !== null) && !(lastVertex.equals(vertex))) {
-        geo.vertices.push(lastVertex);
-        geo.vertices.push(vertex);  
+        travelVertices[vertIndex] = lastVertex.x;
+        travelVertices[vertIndex+1] = lastVertex.y;
+        travelVertices[vertIndex+2] = lastVertex.z;
+        vertIndex += 3;
+
+        travelVertices[vertIndex] = vertex.x;
+        travelVertices[vertIndex+1] = vertex.y;
+        travelVertices[vertIndex+2] = vertex.z;
+        vertIndex += 3;
       }
 
       if (isRangeEnd)

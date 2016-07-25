@@ -31,7 +31,7 @@ GCodeRenderer.prototype.render = function(gcode) {
   // parsing
   for ( ; i < l; i++) {
     if ((i % 100000) == 0)
-      console.log(i, self.numVertices);
+      console.log(i);
 
     // if (i > 100)
     //   break;
@@ -61,7 +61,7 @@ GCodeRenderer.prototype.render = function(gcode) {
   });  
 
   this.visualToolPaths.forEach(function(visualPath) {
-    // self.baseObject.add(visualPath.getVisibleExtrusionMesh());
+    self.baseObject.add(visualPath.getVisibleExtrusionMesh());
     self.baseObject.add(visualPath.getTravelMovesVisual());
   });
 
