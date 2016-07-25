@@ -1,9 +1,17 @@
 function RangeUtil() {};
 
 RangeUtil.unionRanges = function(range1Start, range1End, range2Start, range2End) {
-    var range = [];
-    range[0] = Math.min(range1Start, range2Start);
-    range[1] = Math.max(range1End, range2End);
+    var range = [range1Start, range1End, range2Start, range2End];
+
+    var maxStart = Math.max(range1Start, range2Start);
+    var minEnd = Math.min(range1End, range2End);
+
+    var minStart = Math.min(range1Start, range2Start);
+    var maxEnd = Math.max(range1End, range2End);
+
+    if (minEnd > maxStart) {
+        range = [minStart, maxEnd];
+    }
 
     return range;
 };
@@ -67,3 +75,36 @@ RangeUtil.intersectRangeSets = function(set1, set2) {
 
     return intersectedRangeSet;
 };
+
+RangeUtil.unionRangeSets = function(set1, set2) {
+    var range = [];
+
+    var totalSet = set1.concat(set2);
+    totalSet.sort(function (a,b) {
+        return (a-b);
+    });
+
+    if (totalSet.length < 2)
+        return [0,0];
+    if (totalSet.length == 2)
+        return totalSet;
+
+    range.push(totalSet[0]);
+
+    var endValue = totalSet[1];
+    for (var i = 2; i < totalSet.length; i++) {
+        var startValue = totalSet[i];
+        if (startValue > endValue) 
+            range.push(endValue);
+            range.push(startValue);
+        }
+        endValue = totalSet[i+1]; // set to next range end value
+    }
+
+    range.push(endValue);
+};
+
+
+
+
+

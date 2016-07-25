@@ -12,6 +12,11 @@ function VisualPath() {
   //E value from gcode command, needed for tube geometry radius
   this.extrusionValues = [];
 
+  //Parallel with the polylinePoints array (divided by 3)
+  //For extrusions only - faces index for tube geometry
+  // corresponding to that point
+  this.extrusionTubeFacesIndex = [];
+
   //Polyline part types
   this.extrusionRanges = [];
   this.travelRanges = [];
@@ -69,6 +74,7 @@ VisualPath.prototype.extendPathPolyline = function(newPoint, shouldExtrude, comm
   this.commands.push(commandIndex);
 
   this.extrusionValues.push(newPoint.e);
+  this.extrusionTubeFacesIndex.push(0);
 
   if (shouldExtrude) {
     this.updateLayers(newPoint, pointIndex);
@@ -96,8 +102,6 @@ VisualPath.prototype.finishPathPolyline = function() {
   }
 
   this.setVisibleLayerRange(0, this.layers.length - 1);
-
-  // this.generateTubeGeometry();
 };
 
 //Used to create layers as the polyline is built up
@@ -115,10 +119,12 @@ VisualPath.prototype.updateLayers = function(newPoint, pointIndex) {
       previousLayer.addRangeEnd(pointIndex - this.AXES);
     }
 
+    var startIndex = pointIndex - this.AXES; // needs to include last location
     if (newPoint.z > this.highestZ) { //create new layer
       layerIndex++;
+      this.highestZ = newPoint.z;
     
-      this.addLayer(pointIndex, layerIndex, newPoint.z);
+      this.addLayer(startIndex, layerIndex, newPoint.z);
 
     } else { //find previously created layer
 
@@ -131,13 +137,14 @@ VisualPath.prototype.updateLayers = function(newPoint, pointIndex) {
 
         if (curLayer.height === newPoint.z) { //Found an existing layer at same Z
           layer = curLayer;
-          layer.addRangeStart(pointIndex);
+          layer.addRangeStart(startIndex);
           layerIndex = i;
+          console.log(layerIndex);
           break;
 
         } else if (newPoint.z > curLayer.height) { //Need to insert a new layer
           
-          this.addLayer(pointIndex, i, newPoint.z);
+          this.addLayer(startIndex, i, newPoint.z);
           layerIndex = i;
         }
       }
@@ -160,12 +167,12 @@ VisualPath.prototype.updatePolylinePartRanges = function(pointIndex, extruding) 
     if (pointIndex === 0)
       this.travelRanges.push(pointIndex);
     else
-      this.travelRanges.push(pointIndex - 3);
+      this.travelRanges.push(pointIndex - this.AXES); // needs to include last location
   } else if (startingExtrusion) {
     if (pointIndex === 0)
       this.extrusionRanges.push(pointIndex);
     else
-      this.extrusionRanges.push(pointIndex - 3);
+      this.extrusionRanges.push(pointIndex - this.AXES); // needs to include last location
   }
 
   if (endingTravel) {
@@ -192,6 +199,18 @@ VisualPath.prototype.addLayer = function(pointIndex, layerIndex, height) {
 };
 
 VisualPath.prototype.updateVisibleTubeRanges = function() {
+  var ranges = this.visiblePolylineRanges;
+  var geo = this.extrusionMesh.geometry;
+
+  // clear groups
+  geo.clearGroups();
+
+  for (var i = 0; i < ranges.length; i += 2) {
+    var start = ranges[i];
+    var end = ranges[i + 1];
+
+
+  }
   // clear visibleTubeVertexRanges
   // for each visiblePolylineRange
        // tubeRange = tubeIndexRangeForPolylineIndexRange(infillRange)
@@ -202,11 +221,17 @@ VisualPath.prototype.updateVisibleTubeRanges = function() {
 VisualPath.prototype.updateVisiblePolylineRanges = function() {
   var pointRangeStart = this.firstIndexOfCommand(this.visibleCommandRangeStart);
   var pointRangeEnd = this.lastIndexOfCommand(this.visibleCommandRangeEnd);
+  var commandRange = [pointRangeStart, pointRangeEnd];
 
-  var layerRangeStart = this.layers[this.visibleLayerRangeStart].getFirstRangeStart();
-  var layerRangeEnd = this.layers[this.visibleLayerRangeEnd].getLastRangeEnd();
+  var layerRanges = [];
+  for (var i = this.visibleLayerRangeStart; i <=  this.visibleLayerRangeEnd; i++) {
+    var layer = this.layers[i];
+    if (layerRanges.length > 0) {
+      layerRanges = RangeUtil.unionRangeSets(layerRanges, layer.pointIndexRanges);
+    }
+  }
 
-  this.visiblePolylineRanges = RangeUtil.intersectRanges(pointRangeStart, pointRangeEnd, layerRangeStart, layerRangeEnd);
+  this.visiblePolylineRanges = RangeUtil.intersectRangeSets(commandRange, layerRanges);
 };
 
 VisualPath.prototype.setVisibleLayerRange = function(first, last) {
@@ -217,7 +242,9 @@ VisualPath.prototype.setVisibleLayerRange = function(first, last) {
   this.visibleLayerRangeEnd = last;
 
   this.updateVisiblePolylineRanges();
-  this.updateVisibleTubeRanges();
+
+  if (this.extrusionMesh)
+    this.updateVisibleTubeRanges();
 };
 
 VisualPath.prototype.setVisibleCommandRange = function(first, last) {
@@ -228,7 +255,9 @@ VisualPath.prototype.setVisibleCommandRange = function(first, last) {
   this.visibleCommandRangeEnd = this.commands[last];
 
   this.updateVisiblePolylineRanges();
-  this.updateVisibleTubeRanges();
+
+  if (this.extrusionMesh)
+    this.updateVisibleTubeRanges();
 };
 
 VisualPath.prototype.firstIndexOfCommand = function(command) {
@@ -320,17 +349,6 @@ VisualPath.prototype.getVisibleExtrusionMesh = function() {
     // this.tubeFaces = [];
     this.generateTubeGeometry();
 
-    var visibleExtrusionRanges = RangeUtil.intersectRangeSets(this.extrusionRanges, this.visiblePolylineRanges);
-
-    // this.iteratePolylinePoints(this.polylinePoints, this.extrusionRanges, function(x, y, z, pointIndex) {
-    //   // if (pointIndex >= minPointIndex && pointIndex <= maxPointIndex) {
-    //     var vertex = new THREE.Vector3(x, y, z);
-    //     geo.vertices.push(vertex);
-    //   // }
-    // });
-
-    // mesh = new THREE.Line(geo, new THREE.LineBasicMaterial({color: 0x00AAAA}));
-
     geo.computeVertexNormals();
 
     var extrudeMat = new THREE.MeshStandardMaterial({
@@ -341,9 +359,13 @@ VisualPath.prototype.getVisibleExtrusionMesh = function() {
 
     mesh = new THREE.Mesh(geo, extrudeMat);
     // mesh = new THREE.Mesh(geo, new THREE.MultiMaterial([extrudeMat]));
-    // geo.addGroup(0, this.tubeFaces.length, 0);
     this.extrusionMesh = mesh;
   }
+
+  // set mesh groups based on visiblePolylineRanges
+  var visibleExtrusionRanges = RangeUtil.intersectRangeSets(this.extrusionRanges, this.visiblePolylineRanges);
+
+    // geo.addGroup(0, this.tubeFaces.length, 0);
 
   return mesh;
 };
@@ -565,6 +587,8 @@ VisualPath.prototype.generateTubeGeometry = function() {
         }
         lastNormal = tangent.clone();
       }
+
+      self.extrusionTubeFacesIndex[pointIndex/3] = tubeFacesIndex;
 
       if (isRangeEnd) {
         lastPoint = null; //reset to null to indicate it's a new extrusion

@@ -33,8 +33,9 @@ GCodeRenderer.prototype.render = function(gcode) {
     if ((i % 100000) == 0)
       console.log(i);
 
-    // if (i > 100)
+    // if (i > 300) {
     //   break;
+    // }      
 
     words = self.parser.parseLine(lines[i]);    
     code = {};
@@ -54,7 +55,7 @@ GCodeRenderer.prototype.render = function(gcode) {
       
     }
   }
-  console.log('hi');
+  console.log('done parsing');
 
   this.visualToolPaths.forEach(function(visualPath) {
     visualPath.finishPathPolyline();
@@ -64,6 +65,8 @@ GCodeRenderer.prototype.render = function(gcode) {
     self.baseObject.add(visualPath.getVisibleExtrusionMesh());
     self.baseObject.add(visualPath.getTravelMovesVisual());
   });
+
+  console.log('hi');
 
   // Center
   var geo = this.visualToolPaths[0].getVisibleExtrusionMesh().geometry;
