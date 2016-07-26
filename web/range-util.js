@@ -77,31 +77,46 @@ RangeUtil.intersectRangeSets = function(set1, set2) {
 };
 
 RangeUtil.unionRangeSets = function(set1, set2) {
-    var range = [];
+    var totalRanges = set1.concat(set2);
 
-    var totalSet = set1.concat(set2);
-    totalSet.sort(function (a,b) {
-        return (a-b);
-    });
+    // sort based on start value
+    totalRanges = totalRanges.map(function(element, index, array) {
+        if (index % 2 === 1)
+            return null;
+        else
+            return {
+              end: array[index + 1],
+              start: element
+            };
+    })
+    .filter(function(element) {
+        return element != null;
+    })
+    .sort(function(a, b) {
+        return a.start - b.start;
+    })
+    .reduce(function(array, element) {
+        array.push(element.start, element.end);
+        return array;
+      }, []);
 
-    if (totalSet.length < 2)
-        return [0,0];
-    if (totalSet.length == 2)
-        return totalSet;
+    var ranges = [];
+    ranges.push(totalRanges[0]);
+    var endValue = totalRanges[1];
 
-    range.push(totalSet[0]);
-
-    var endValue = totalSet[1];
-    for (var i = 2; i < totalSet.length; i++) {
-        var startValue = totalSet[i];
-        if (startValue > endValue) 
-            range.push(endValue);
-            range.push(startValue);
+    for (var i = 2; i < totalRanges.length; i+=2) {
+        var startValue = totalRanges[i];
+        if (startValue > endValue) {
+            ranges.push(endValue);
+            ranges.push(startValue);
         }
-        endValue = totalSet[i+1]; // set to next range end value
+
+        endValue = totalRanges[i+1];
     }
 
-    range.push(endValue);
+    ranges.push(endValue);
+
+    return ranges;
 };
 
 

@@ -200,17 +200,17 @@ VisualPath.prototype.addLayer = function(pointIndex, layerIndex, height) {
 
 VisualPath.prototype.updateVisibleTubeRanges = function() {
   var ranges = this.visiblePolylineRanges;
-  var geo = this.extrusionMesh.geometry;
+  // var geo = this.extrusionMesh.geometry;
 
-  // clear groups
-  geo.clearGroups();
+  // // clear groups
+  // geo.clearGroups();
 
-  for (var i = 0; i < ranges.length; i += 2) {
-    var start = ranges[i];
-    var end = ranges[i + 1];
+  // for (var i = 0; i < ranges.length; i += 2) {
+  //   var start = ranges[i];
+  //   var end = ranges[i + 1];
 
 
-  }
+  // }
   // clear visibleTubeVertexRanges
   // for each visiblePolylineRange
        // tubeRange = tubeIndexRangeForPolylineIndexRange(infillRange)
@@ -226,9 +226,11 @@ VisualPath.prototype.updateVisiblePolylineRanges = function() {
   var layerRanges = [];
   for (var i = this.visibleLayerRangeStart; i <=  this.visibleLayerRangeEnd; i++) {
     var layer = this.layers[i];
-    if (layerRanges.length > 0) {
-      layerRanges = RangeUtil.unionRangeSets(layerRanges, layer.pointIndexRanges);
-    }
+    console.log(layer.pointIndexRanges);
+    if (layerRanges.length > 0)
+      layerRanges = RangeUtil.unionRangeSets(layerRanges, layer.pointIndexRanges);        
+    else
+      layerRanges = layer.pointIndexRanges;
   }
 
   this.visiblePolylineRanges = RangeUtil.intersectRangeSets(commandRange, layerRanges);
@@ -242,9 +244,7 @@ VisualPath.prototype.setVisibleLayerRange = function(first, last) {
   this.visibleLayerRangeEnd = last;
 
   this.updateVisiblePolylineRanges();
-
-  if (this.extrusionMesh)
-    this.updateVisibleTubeRanges();
+  this.updateVisibleTubeRanges();
 };
 
 VisualPath.prototype.setVisibleCommandRange = function(first, last) {
@@ -255,9 +255,7 @@ VisualPath.prototype.setVisibleCommandRange = function(first, last) {
   this.visibleCommandRangeEnd = this.commands[last];
 
   this.updateVisiblePolylineRanges();
-
-  if (this.extrusionMesh)
-    this.updateVisibleTubeRanges();
+  this.updateVisibleTubeRanges();
 };
 
 VisualPath.prototype.firstIndexOfCommand = function(command) {
