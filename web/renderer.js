@@ -100,7 +100,7 @@ function createScene(container) {
 
         // guiParameters.layerHeight = 0;
       } else if (guiParameters.updateLayer) {
-        gr.setVisibleLayerRange(0, guiParameters.layerIndex);   
+        gr.setVisibleLayerRange(guiParameters.layerIndex);   
         guiParameters.updateLayer = false;
 
         guiParameters.gcodeIndex = 0;

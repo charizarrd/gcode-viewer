@@ -1,17 +1,9 @@
 function RangeUtil() {};
 
 RangeUtil.unionRanges = function(range1Start, range1End, range2Start, range2End) {
-    var range = [range1Start, range1End, range2Start, range2End];
-
-    var maxStart = Math.max(range1Start, range2Start);
-    var minEnd = Math.min(range1End, range2End);
-
-    var minStart = Math.min(range1Start, range2Start);
-    var maxEnd = Math.max(range1End, range2End);
-
-    if (minEnd > maxStart) {
-        range = [minStart, maxEnd];
-    }
+    var range = [];
+    range[0] = Math.min(range1Start, range2Start);
+    range[1] = Math.max(range1End, range2End);
 
     return range;
 };

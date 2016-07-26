@@ -15,6 +15,8 @@ function GCodeRenderer() {
     max: { x:-100000, y:-100000, z:-100000 }
   };
 
+  this.layers = [];
+  this.numLayers = 0;
 };
 
 GCodeRenderer.prototype.render = function(gcode) {
@@ -30,15 +32,11 @@ GCodeRenderer.prototype.render = function(gcode) {
   // l = 50000;
   // parsing
   for ( ; i < l; i++) {
-    if ((i % 100000) == 0)
+    if ((i % 10000) == 0)
       console.log(i);
 
-    // if (i > 300) {
-    //   break;
-    // }      
-
     words = self.parser.parseLine(lines[i]);    
-    code = {};
+    code = {};  
 
     if (words.length > 0) {
       code.params = {};
@@ -50,7 +48,7 @@ GCodeRenderer.prototype.render = function(gcode) {
           code.params[word.letter.toLowerCase()] = parseFloat(word.value);
         }
       });
-    
+
       self.gcodeHandler(code); 
       
     }
@@ -65,6 +63,48 @@ GCodeRenderer.prototype.render = function(gcode) {
     self.baseObject.add(visualPath.getVisibleExtrusionMesh());
     self.baseObject.add(visualPath.getTravelMovesVisual());
   });
+
+  // count total layers
+  // this.visualToolPaths.forEach(function(visualPath) {
+  //   console.log(visualPath.layers);
+
+  //   if (self.layers.length === 0) {
+  //     visualPath.layers.forEach(function(layer) {
+  //       self.layers.push(layer.height);
+  //     });
+  //     self.numLayers = self.layers.length;
+  //   } else {
+  //     visualPath.layers.forEach(function(layer) {
+  //       var targetHeight = layer.height;
+  //       var newHeight = true;
+
+  //       var start = 0;
+  //       var end = self.numLayers;
+  //       while ((end - start) >= 0) {
+  //         var index = Math.round((end - start) / 2);
+  //         var guessHeight = self.layers[index];
+
+  //         if (guessHeight === targetHeight) {
+  //           newHeight = false;
+  //           break;
+  //         }
+
+  //         if ((end - start) === 0)
+  //           break;
+  //         else if (guessHeight > targetHeight)
+  //           end = index-1;
+  //         else if (guessHeight < targetHeight)
+  //           start = index+1;
+  //       }
+
+  //       if (newHeight) {
+  //         self.layers.splice(start, 0, targetHeight);
+  //         console.log(targetHeight);
+  //       }
+  //     });
+  //   }
+  // });
+
 
   console.log('hi');
 
@@ -288,8 +328,15 @@ GCodeRenderer.prototype.absolute = function(v1, v2) {
 
 GCodeRenderer.prototype.setVisibleLayerRange = function(layerIndex) {
   //calls 'setVisibleLayerRange' on each VisualPath
+
+  // this.visualToolPaths.forEach(function(visualPath) {
+  //   visualPath.setVisibleLayerRange(layerIndex-1, layerIndex);
+  // });  
 };
 
 GCodeRenderer.prototype.setVisibleCommandRange = function(layerIndex) {
   //calls 'setVisibleCommandRange' on each VisualPath
+
+
+  // var geo = this.visualToolPaths[0].getVisibleExtrusionMesh().geometry;
 };
