@@ -32,7 +32,7 @@ GCodeRenderer.prototype.render = function(gcode) {
   // l = 50000;
   // parsing
   for ( ; i < l; i++) {
-    if ((i % 10000) == 0)
+    if ((i % 100000) == 0)
       console.log(i);
 
     words = self.parser.parseLine(lines[i]);    
@@ -64,46 +64,49 @@ GCodeRenderer.prototype.render = function(gcode) {
     self.baseObject.add(visualPath.getTravelMovesVisual());
   });
 
-  // count total layers
-  // this.visualToolPaths.forEach(function(visualPath) {
-  //   console.log(visualPath.layers);
+  console.log('here');
 
-  //   if (self.layers.length === 0) {
-  //     visualPath.layers.forEach(function(layer) {
-  //       self.layers.push(layer.height);
-  //     });
-  //     self.numLayers = self.layers.length;
-  //   } else {
-  //     visualPath.layers.forEach(function(layer) {
-  //       var targetHeight = layer.height;
-  //       var newHeight = true;
+  //count total layers
+  this.visualToolPaths.forEach(function(visualPath) {
+    console.log(visualPath.layers.length);
 
-  //       var start = 0;
-  //       var end = self.numLayers;
-  //       while ((end - start) >= 0) {
-  //         var index = Math.round((end - start) / 2);
-  //         var guessHeight = self.layers[index];
+    if (self.layers.length === 0) {
+      visualPath.layers.forEach(function(layer) {
+        self.layers.push(layer.height);
+      });
+      self.numLayers = self.layers.length;
+    } else {
+      visualPath.layers.forEach(function(layer) {
+        var targetHeight = layer.height;
 
-  //         if (guessHeight === targetHeight) {
-  //           newHeight = false;
-  //           break;
-  //         }
+        var start = 0;
+        var end = self.numLayers;
+        while ((end - start) > 0) {
+          var index = Math.round((end + start) / 2);
+          var guessHeight = self.layers[index];
 
-  //         if ((end - start) === 0)
-  //           break;
-  //         else if (guessHeight > targetHeight)
-  //           end = index-1;
-  //         else if (guessHeight < targetHeight)
-  //           start = index+1;
-  //       }
+          if (guessHeight === targetHeight)
+            break;
 
-  //       if (newHeight) {
-  //         self.layers.splice(start, 0, targetHeight);
-  //         console.log(targetHeight);
-  //       }
-  //     });
-  //   }
-  // });
+          if ((end - start) === 1) {
+            var index;
+            if (guessHeight > targetHeight)
+              index = end;
+            else
+              index = end+1;
+
+            self.layers.splice(index, 0, targetHeight);
+            console.log(targetHeight);
+            break;
+          }
+          else if (guessHeight > targetHeight)
+            end = index-1;
+          else if (guessHeight < targetHeight)
+            start = index+1;
+        }
+      });
+    }
+  });
 
 
   console.log('hi');
