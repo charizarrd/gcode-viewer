@@ -1,20 +1,27 @@
 function Layer() {
-  this.pointIndexRanges = [];
-  this.height = -1;
+	this.extrusionPointIndexRanges = [];
+	this.travelPointIndexRanges = [];
+	this.height = -1;
 };
 
-Layer.prototype.addRangeStart = function(index) {
-  this.pointIndexRanges.push(index);
-};
-  
-Layer.prototype.addRangeEnd = function(index) {
-  this.pointIndexRanges.push(index);
-};
+Layer.prototype.addRangeStart = function(index, extrude) {
+	var range;
 
-Layer.prototype.getFirstRangeStart = function() {
-  return this.pointIndexRanges[0];
-};
+	if (extrude)
+		range = this.extrusionPointIndexRanges;
+	else
+		range = this.travelPointIndexRanges;
 
-Layer.prototype.getLastRangeEnd = function() {
-  return this.pointIndexRanges[this.pointIndexRanges.length - 1];
+	range.push(index);
+};
+	
+Layer.prototype.addRangeEnd = function(index, extrude) {
+	var range;
+
+	if (extrude)
+		range = this.extrusionPointIndexRanges;
+	else
+		range = this.travelPointIndexRanges;
+
+	range.push(index);
 };

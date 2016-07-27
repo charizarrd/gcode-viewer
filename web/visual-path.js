@@ -56,6 +56,7 @@ function VisualPath() {
   this.lowestZ = 1000;
   this.meshDataChanged = true;
   this.material = null;
+  this.lastTravelHeight = null;
 
   //Three.js scenegraph objects
   this.extrusionMesh = null;
@@ -65,7 +66,7 @@ function VisualPath() {
 
   //Not sure if this first point should actually be included or not
   //Also, should check whether it's a travel or extrusion
-  // this.extendPathPolyline(this.lastPoint, this.extrudedLastTime);
+  this.extendPathPolyline(this.lastPoint, this.extrudedLastTime);
 };
 
 VisualPath.prototype.extendPathPolyline = function(newPoint, shouldExtrude, commandIndex) {
@@ -82,11 +83,11 @@ VisualPath.prototype.extendPathPolyline = function(newPoint, shouldExtrude, comm
   this.extrusionValues.push(newPoint.e);
   this.extrusionTubeFacesIndex.push(0);
 
-  if (shouldExtrude) {
-    this.updateLayers(newPoint, pointIndex);
-  }
-
   this.updatePolylinePartRanges(pointIndex, shouldExtrude);
+
+  // if (shouldExtrude) {
+  this.updateLayers(newPoint, pointIndex, shouldExtrude);
+  // }
 
   this.lastPoint = newPoint;
   this.extrudedLastTime = shouldExtrude;
@@ -104,7 +105,7 @@ VisualPath.prototype.finishPathPolyline = function() {
 
   //Finish layers
   // if (this.extrudedLastTime) {
-  this.layers[this.lastLayerIndex].addRangeEnd(pointIndex);
+  this.layers[this.lastLayerIndex].addRangeEnd(pointIndex, this.extrudedLastTime);
   // }
 
   // build geometries
@@ -114,10 +115,9 @@ VisualPath.prototype.finishPathPolyline = function() {
 };
 
 //Used to create layers as the polyline is built up
-VisualPath.prototype.updateLayers = function(newPoint, pointIndex) {
-
+VisualPath.prototype.updateLayers = function(newPoint, pointIndex, extruding) {
   var atSameZ = (newPoint.z === this.lastLayerHeight);
-  var layerIndex = null;
+  var layerIndex = this.lastLayerIndex;
 
   if (!atSameZ) { //change layers
 
@@ -125,50 +125,67 @@ VisualPath.prototype.updateLayers = function(newPoint, pointIndex) {
 
       //close range on previous layer
       var previousLayer = this.layers[this.lastLayerIndex];
-      previousLayer.addRangeEnd(pointIndex - this.AXES);
+      previousLayer.addRangeEnd(pointIndex - this.AXES, this.extrudedLastTime);
+
+      // if travelling, include this motion in both previous layer and new layer
+      if (this.extrudedLastTime && !extruding) {
+        previousLayer.addRangeStart(pointIndex - this.AXES, extruding);
+        previousLayer.addRangeStart(pointIndex, extruding);
+      }
     }
  
     var startIndex = pointIndex - this.AXES; // needs to include last location
+    if (pointIndex === 0)
+      startIndex = pointIndex;
 
     // check if above highest layer so far
     if (newPoint.z > this.highestZ) {
       layerIndex = this.layers.length;
       this.highestZ = newPoint.z
     
-      this.addLayer(startIndex, layerIndex, newPoint.z);
+      this.addLayer(startIndex, layerIndex, newPoint.z, extruding);
     }
     // check if below lowest layer so far
-    else if (newPoint.z < this.lowestZ) {
-      layerIndex = 0;
-      this.lowestZ = newPoint.z;
+    // else if (newPoint.z < this.lowestZ) {
+    //   layerIndex = 0;
+    //   this.lowestZ = newPoint.z;
     
-      this.addLayer(startIndex, layerIndex, newPoint.z);
-    }
+    //   this.addLayer(startIndex, layerIndex, newPoint.z, extruding);
+    // }
     // check if layer already exists with this height
     else {
       var targetHeight = newPoint.z;
 
       // use bisection search to find proper layerIndex 
       var start = 0;
-      var end = this.layers.length;
+      var end = this.layers.length-1;
       while ((end - start) > 0) {
         var index = Math.round((end + start) / 2);
         var guessHeight = this.layers[index].height;
 
         if (guessHeight === targetHeight) {
           layer = this.layers[index];
-          layer.addRangeStart(startIndex);
+          layer.addRangeStart(startIndex, extruding);
           layerIndex = index;
           break;
         }
 
         if ((end - start) === 1) {
-          if (guessHeight > targetHeight)
-            layerIndex = end;
-          else
-            layerIndex = end+1;
+          index = start;
+          guessHeight = this.layers[index].height;
 
-          this.addLayer(startIndex, layerIndex, newPoint.z);
+          if (guessHeight === targetHeight) {
+            layer = this.layers[index];
+            layer.addRangeStart(startIndex, extruding);
+            layerIndex = index;
+            break;
+          }
+          else if (guessHeight > targetHeight)
+            layerIndex = end-1;
+          else
+            layerIndex = end;
+
+          this.addLayer(startIndex, layerIndex, newPoint.z, extruding);
           break;
         }
         else if (guessHeight > targetHeight)
@@ -176,17 +193,14 @@ VisualPath.prototype.updateLayers = function(newPoint, pointIndex) {
         else if (guessHeight < targetHeight)
           start = index;
       }
-
-      // if (layerIndex === null) {
-      //   this.addLayer(startIndex, start+1, newPoint.z);
-      //   layerIndex = start+1;
-      // }
     }
   } else {
-    layerIndex = this.lastLayerIndex;
+    if (this.extrudedLastTime !== extruding) {
+      this.layers[layerIndex].addRangeStart(pointIndex - this.AXES, extruding);
+      this.layers[layerIndex].addRangeEnd(pointIndex - this.AXES, this.extrudedLastTime);
+    }
   }
 
-  // console.log(layerIndex, this.layers[layerIndex]);
   this.lastLayerIndex = layerIndex;
   this.lastLayerHeight = this.layers[layerIndex].height;
 };
@@ -218,11 +232,12 @@ VisualPath.prototype.updatePolylinePartRanges = function(pointIndex, extruding) 
   }
 };
 
-VisualPath.prototype.addLayer = function(pointIndex, layerIndex, height) {
+// create new layer
+VisualPath.prototype.addLayer = function(pointIndex, layerIndex, height, extruding) {
 
   var newLayer = new Layer();
 
-  newLayer.addRangeStart(pointIndex);
+  newLayer.addRangeStart(pointIndex, extruding);
   newLayer.height = height;
 
   if (layerIndex === this.layers.length) { //add to end
@@ -239,7 +254,16 @@ VisualPath.prototype.addLayer = function(pointIndex, layerIndex, height) {
 
 VisualPath.prototype.updateVisibleTubeRanges = function() {
   var self = this;
-  var visibleExtrusionRanges = RangeUtil.intersectRangeSets(this.extrusionRanges, this.visiblePolylineRanges);
+  // var visibleExtrusionRanges = RangeUtil.intersectRangeSets(this.extrusionRanges, this.visiblePolylineRanges);
+
+  var visibleExtrusionRanges = [];
+  for (var i = this.visibleLayerRangeStart; i <=  this.visibleLayerRangeEnd; i++) {
+    var layer = this.layers[i];
+    if (visibleExtrusionRanges.length > 0)
+      visibleExtrusionRanges = RangeUtil.unionRangeSets(visibleExtrusionRanges, layer.extrusionPointIndexRanges);        
+    else
+      visibleExtrusionRanges = layer.extrusionPointIndexRanges;
+  }
 
   this.visibleTubeRanges = [];
 
@@ -274,18 +298,18 @@ VisualPath.prototype.updateVisiblePolylineRanges = function() {
 
   // this.visiblePolylineRanges = RangeUtil.intersectRanges(pointRangeStart, pointRangeEnd, layerRangeStart, layerRangeEnd);
 
-  var layerRanges = [];
+  var visibleTravelRanges = [];
   for (var i = this.visibleLayerRangeStart; i <=  this.visibleLayerRangeEnd; i++) {
     var layer = this.layers[i];
-    if (layerRanges.length > 0)
-      layerRanges = RangeUtil.unionRangeSets(layerRanges, layer.pointIndexRanges);        
+    if (visibleTravelRanges.length > 0)
+      visibleTravelRanges = RangeUtil.unionRangeSets(visibleTravelRanges, layer.travelPointIndexRanges);        
     else
-      layerRanges = layer.pointIndexRanges;
+      visibleTravelRanges = layer.travelPointIndexRanges;
   }
 
-  this.visiblePolylineRanges = RangeUtil.intersectRangeSets(commandRange, layerRanges);
+  // this.visiblePolylineRanges = RangeUtil.intersectRangeSets(commandRange, layerRanges);
 
-  var visibleTravelRanges = RangeUtil.intersectRangeSets(this.travelRanges, this.visiblePolylineRanges);
+  // var visibleTravelRanges = RangeUtil.intersectRangeSets(this.travelRanges, this.visiblePolylineRanges);
   var geo = this.travelMovesLine.geometry;
   geo.clearGroups();
 
@@ -295,7 +319,6 @@ VisualPath.prototype.updateVisiblePolylineRanges = function() {
 
     geo.addGroup(start, end - start, 0);
   }
-  console.log(geo.groups);
 };
 
 VisualPath.prototype.setVisibleLayerRange = function(first, last) {
@@ -480,8 +503,8 @@ VisualPath.prototype.getTravelMovesVisual = function() {
 
 // TODO: should probably be passed in 
 VisualPath.prototype.calculateExtrusionHeight = function(extrusionValue, pathLength) {
-  var extrusionWidth = 0.35;
-  var filamentDiameter = 1.75;
+  var extrusionWidth = 0.35; // should not be constant
+  var filamentDiameter = 1.75; // should not be constant
   var volume = extrusionValue * Math.PI * Math.pow((filamentDiameter/2), 2);
   var crossArea = volume / pathLength;
   var a = (Math.PI/4 - 1);

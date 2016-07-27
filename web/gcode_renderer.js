@@ -96,7 +96,7 @@ GCodeRenderer.prototype.render = function(gcode) {
               index = end+1;
 
             self.layers.splice(index, 0, targetHeight);
-            console.log(targetHeight);
+            // console.log(targetHeight);
             break;
           }
           else if (guessHeight > targetHeight)
