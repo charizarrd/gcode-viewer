@@ -1,8 +1,15 @@
 var camera, controls, renderer, composer;
+
+var raycaster = new THREE.Raycaster();
+var mouse = new THREE.Vector2();
+
 function createScene(container) {
 
   var containerWidth  = window.innerWidth || 2, //container.offsetWidth,
       containerHeight = window.innerHeight || 2; //container.offsetHeight;
+
+  // var containerWidth = container.offsetWidth;
+  // var containerHeight = container.offsetHeight;
 
   var autoRotate = false;
 
@@ -41,14 +48,22 @@ function createScene(container) {
         far    = 10000;
     camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
     // camera = new THREE.OrthographicCamera( containerWidth / - 2, containerWidth / 2, containerHeight / 2, containerHeight / - 2, near, far);
-    camera.position.z = 300;
+    // camera.position.set(0,0,50);
 
     scene.add(camera);
 
-    controls = new THREE.TrackballControls( camera, renderer.domElement);
-    controls.rotateSpeed = 1.0;
-    controls.noZoom = false;
-    controls.noPan = false;
+    // controls = new THREE.TrackballControls( camera, renderer.domElement);
+    // controls.rotateSpeed = 1.0;
+    // controls.noZoom = false;
+    // controls.noPan = false;
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.15;
+    controls.enableZoom = true;
+    controls.enablePan = true;
+    controls.enableRotate = true;
+    controls.rotateSpeed = 0.15;
 
     setSize(containerWidth, containerHeight);
 
@@ -56,13 +71,13 @@ function createScene(container) {
     window.addEventListener( 'resize', function() {
       setSize(window.innerWidth, window.innerHeight)
     }, false );
-    window.addEventListener( 'keydown', keydown, false );
+
+    container.addEventListener('click', onMouseDown, false);
 
     stats = new Stats();
     stats.domElement.style.position = 'absolute';
     stats.domElement.style.top = '0px';
     container.appendChild( stats.domElement );
-
   }
 
   function animate() {
@@ -132,16 +147,37 @@ function createScene(container) {
 
     renderer.setSize(width, height);
 
-    controls.handleResize();
-
   }
 
-  function keydown(event) {
+  function onMouseDown( event ) {
+    mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
+    mouse.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
 
-    if( event.keyCode == 32 ) { // 32 == spacebar
-      autoRotate = !autoRotate;
+    console.log(mouse);
+
+    raycaster.setFromCamera( mouse, camera );
+
+    // See if the ray from the camera into the world hits mesh
+    if (gr) {
+      gr.visualToolPaths.forEach(function(visualPath) {
+        var mesh = visualPath.getVisibleExtrusionMesh();
+        var intersects = raycaster.intersectObject( mesh );
+
+        if ( intersects.length > 0 ) {
+          console.log(intersects[0].point);
+
+          changeCameraTarget(intersects[0].point);
+        }
+      });
     }
+
   }
+
+  function changeCameraTarget( newTarget ) {
+    controls.target.set(newTarget.x, newTarget.y, newTarget.z);
+    camera.lookAt(newTarget);
+  }
+
 
   return scene;
 }

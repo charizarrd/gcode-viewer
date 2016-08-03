@@ -434,14 +434,23 @@ VisualPath.prototype.getVisibleExtrusionMesh = function() {
 
     geo.computeVertexNormals();
 
-    var extrudeMat = new THREE.MeshStandardMaterial({
+    var extrudeMat = new THREE.MeshBasicMaterial({
       color: 0x00AAAA,
-      metalness: 0.5,
-      roughness: 0.5
+      // wireframe: true,
+      // vertexColors: THREE.FaceColor,
+      // metalness: 0.5,
+      // roughness: 0.5
+    });
+
+    var redMat = new THREE.MeshBasicMaterial({
+      color: 0xFF0000,
+      // vertexColors: THREE.FaceColor,
+      // metalness: 0.5,
+      // roughness: 0.5
     });
 
     // mesh = new THREE.Mesh(geo, extrudeMat);
-    mesh = new THREE.Mesh(geo, new THREE.MultiMaterial([extrudeMat]));
+    mesh = new THREE.Mesh(geo, new THREE.MultiMaterial([extrudeMat, redMat]));
     this.extrusionMesh = mesh;
   }
 
@@ -452,6 +461,7 @@ VisualPath.prototype.getTravelMovesVisual = function() {
   var self = this;
   var mesh = this.travelMovesLine;
 
+  // TODO: what to do if mesh is empty?
   if (mesh === null) {
     // var geo = new THREE.Geometry();
     var geo = new THREE.BufferGeometry();

@@ -27,7 +27,7 @@ function onGCodeLoaded(gcode) {
       var gcodeObj = gr.render(gcode);
 
       camera.position.z = 500;
-      camera.position.y = -1500;
+      // camera.position.y = -1500;
       camera.lookAt( gr.center );
 
 

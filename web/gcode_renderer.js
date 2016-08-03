@@ -126,8 +126,8 @@ GCodeRenderer.prototype.render = function(gcode) {
 
       scale = Math.min(zScale, Math.min(xScale, yScale));
 
-  self.baseObject.position = self.center.multiplyScalar(-scale);
-  self.baseObject.scale.multiplyScalar(scale);
+  // self.baseObject.position = self.center.multiplyScalar(-scale);
+  // self.baseObject.scale.multiplyScalar(scale);
 
   return self.baseObject;
 };
