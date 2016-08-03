@@ -153,8 +153,6 @@ function createScene(container) {
     mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
     mouse.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
 
-    console.log(mouse);
-
     raycaster.setFromCamera( mouse, camera );
 
     // See if the ray from the camera into the world hits mesh
@@ -164,7 +162,20 @@ function createScene(container) {
         var intersects = raycaster.intersectObject( mesh );
 
         if ( intersects.length > 0 ) {
-          console.log(intersects[0].point);
+          var visualPathFacesIndex = visualPath.extrusionTubeFacesIndex;
+          var start = visualPathFacesIndex[0];
+          var target = intersects[0].faceIndex*3;
+          for (var i = 1; i < visualPathFacesIndex.length; i++) {
+            var end = visualPathFacesIndex[i];
+
+            if ((target >= start) && (target < end)) {
+              var geo = mesh.geometry;
+              geo.addGroup(start, end - start, 1);
+              break;
+            }
+            start = end;
+
+          }
 
           changeCameraTarget(intersects[0].point);
         }
