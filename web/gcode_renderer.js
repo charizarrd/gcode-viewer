@@ -15,6 +15,8 @@ function GCodeRenderer() {
     max: { x:-100000, y:-100000, z:-100000 }
   };
 
+  this.config = {};
+
   this.layers = [];
   this.numLayers = 0;
 };
@@ -35,13 +37,13 @@ GCodeRenderer.prototype.render = function(gcode) {
     if ((i % 100000) == 0)
       console.log(i);
 
-    words = self.parser.parseLine(lines[i]);    
+    parsedLine = self.parser.parseLine(lines[i]);    
     code = {};  
 
-    if (words.length > 0) {
+    if (parsedLine.words.length > 0) {
       code.params = {};
 
-      words.forEach(function(word, i) {
+      parsedLine.words.forEach(function(word, i) {
         if (i === 0) {
           code.cmd = word.raw;
         } else {
@@ -52,7 +54,17 @@ GCodeRenderer.prototype.render = function(gcode) {
       self.gcodeHandler(code); 
       
     }
+    else if (parsedLine.comments.length > 0 && Object.keys(self.config).length === 0) {
+      parsedLine.comments.forEach(function(comment) {
+        var config = self.parser.parseConfig(comment);
+
+        if (Object.keys(config).length > 0) {
+          self.config = config;
+        }
+      });
+    }
   }
+
   console.log('done parsing');
 
   this.visualToolPaths.forEach(function(visualPath) {
@@ -68,7 +80,7 @@ GCodeRenderer.prototype.render = function(gcode) {
 
   //count total layers
   this.visualToolPaths.forEach(function(visualPath) {
-    console.log(visualPath.layers.length);
+    // console.log(visualPath.layers.length);
 
     if (self.layers.length === 0) {
       visualPath.layers.forEach(function(layer) {
@@ -285,7 +297,7 @@ GCodeRenderer.prototype.visualPathForToolNumber = function(toolNumber) {
   var visualPath = this.visualToolPaths[toolNumber];
 
   if (visualPath === null || visualPath === undefined) {
-    visualPath = new VisualPath();
+    visualPath = new VisualPath(this.config);
     this.visualToolPaths[toolNumber] = visualPath;
   }
 

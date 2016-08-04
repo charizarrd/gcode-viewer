@@ -177,7 +177,6 @@ function createScene(container) {
               break;
             }
             start = end;
-
           }
 
           changeCameraTarget(intersects[0].point);

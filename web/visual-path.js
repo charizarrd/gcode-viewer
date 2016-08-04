@@ -1,4 +1,6 @@
-function VisualPath() {
+function VisualPath(config) {
+  this.config = config;
+
   //All the points traveled to by some tool
   this.polylinePoints = [];
 
@@ -438,16 +440,12 @@ VisualPath.prototype.getVisibleExtrusionMesh = function() {
     var extrudeMat = new THREE.MeshStandardMaterial({
       color: 0x00AAAA,
       // wireframe: true,
-      // vertexColors: THREE.FaceColor,
       metalness: 0.5,
       roughness: 0.5
     });
 
     var whiteMat = new THREE.MeshBasicMaterial({
       color: 0xFFFFFF,
-      // vertexColors: THREE.FaceColor,
-      // metalness: 0.5,
-      // roughness: 0.5
     });
 
     // mesh = new THREE.Mesh(geo, extrudeMat);
@@ -514,8 +512,8 @@ VisualPath.prototype.getTravelMovesVisual = function() {
 
 // TODO: should probably be passed in 
 VisualPath.prototype.calculateExtrusionHeight = function(extrusionValue, pathLength) {
-  var extrusionWidth = 0.35; // should not be constant
-  var filamentDiameter = 1.72; // should not be constant
+  var extrusionWidth = this.config.extrusionWidth;
+  var filamentDiameter = this.config.filamentDiameter;
   var volume = extrusionValue * Math.PI * Math.pow((filamentDiameter/2), 2);
   var crossArea = volume / pathLength;
   var a = (Math.PI/4 - 1);
@@ -566,7 +564,7 @@ VisualPath.prototype.generateTubeGeometry = function() {
         var extrusionValue = self.extrusionValues[pointIndex/3];
         var pathLength = lastPoint.distanceTo(currentPoint);
         var tubeRadius = self.calculateExtrusionHeight(extrusionValue, pathLength);
-
+        
         // todo: remove later - for non pneumatic extrusions
         if (isNaN(tubeRadius))
           tubeRadius = 0.2;

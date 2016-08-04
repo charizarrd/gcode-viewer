@@ -29,6 +29,27 @@ GCodeParser.prototype.parseComments = function(line) {
   return comments;
 }
 
+
+GCodeParser.prototype.parseConfig = function(comment) {
+  var self = this,
+      config = {};
+
+  var matches = comment.match(/; Config: /g);
+  if (matches) {
+    matches.forEach(function(match) {
+      comment = comment.replace(match, '');
+    });
+
+    var json = JSON.parse(comment);
+
+    config.filamentDiameter = json.tools[0].filament_diameter;
+    config.extrusionWidth = json.tools[0].extrusion.width;
+  }
+
+  return config;
+}
+
+
 GCodeParser.prototype.parseWord = function(word)
 {
   if (!word.length) {
@@ -83,9 +104,14 @@ GCodeParser.prototype.parseLine = function(line) {
     // var message = words[i] + " code: " + pWord.letter + " val: " + pWord.value + " group: ";
     // console.log(message);
   }
-  return parsedWords;
+  return {
+    words: parsedWords,
+    comments: comments
+  };
 };
 
+
+// this isn't used but leaving just in case
 GCodeParser.prototype.parse = function(gcode) {
   var gcodes = [];
   var lines = gcode.split('\n'),
