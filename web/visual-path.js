@@ -271,10 +271,6 @@ VisualPath.prototype.updateVisibleTubeRanges = function() {
       visibleExtrusionRanges = RangeUtil.unionRangeSets(visibleExtrusionRanges, tubeFaceRanges);        
     else
       visibleExtrusionRanges = tubeFaceRanges;
-
-
-    console.log(tubeFaceRanges);
-    console.log(visibleExtrusionRanges);
   }
 
   this.visibleTubeRanges = visibleExtrusionRanges;
@@ -287,10 +283,12 @@ VisualPath.prototype.updateVisibleTubeRanges = function() {
   geo.clearGroups();
 
   for (var i=0; i < this.visibleTubeRanges.length; i+=2) {
-    var start = this.visibleTubeRanges[i];
-    var end = this.visibleTubeRanges[i+1];
+      var start = this.visibleTubeRanges[i];
+      var end = this.visibleTubeRanges[i+1];
 
-    geo.addGroup(start, end - start, 0);
+    if (end > start) { // to avoid when ranges are [1, 1]
+      geo.addGroup(start, end - start, 0);
+    }
   }
 
   // clear visibleTubeVertexRanges
