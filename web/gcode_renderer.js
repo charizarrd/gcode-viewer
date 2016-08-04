@@ -270,7 +270,12 @@ GCodeRenderer.prototype.getArcPoints = function(lastPoint, newPoint, clockwise) 
   var samples = 2*x;
 
   curve.getPoints(samples).forEach(function(p) {
-    points.push({x: p.x, y: p.y, z: newPoint.z, e: newPoint.e/samples});
+    points.push({
+      x: Math.round(p.x * 1000) / 1000, // round to 3 decimal places
+      y: Math.round(p.y * 1000) / 1000,
+      z: newPoint.z,
+      e: newPoint.e/samples
+    });
   });
 
   return points;

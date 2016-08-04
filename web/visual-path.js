@@ -515,7 +515,7 @@ VisualPath.prototype.getTravelMovesVisual = function() {
 // TODO: should probably be passed in 
 VisualPath.prototype.calculateExtrusionHeight = function(extrusionValue, pathLength) {
   var extrusionWidth = 0.35; // should not be constant
-  var filamentDiameter = 1.75; // should not be constant
+  var filamentDiameter = 1.72; // should not be constant
   var volume = extrusionValue * Math.PI * Math.pow((filamentDiameter/2), 2);
   var crossArea = volume / pathLength;
   var a = (Math.PI/4 - 1);
@@ -565,8 +565,12 @@ VisualPath.prototype.generateTubeGeometry = function() {
 
         var extrusionValue = self.extrusionValues[pointIndex/3];
         var pathLength = lastPoint.distanceTo(currentPoint);
-        // var tubeRadius = self.calculateExtrusionHeight(extrusionValue, pathLength);
-        var tubeRadius = 0.2;
+        var tubeRadius = self.calculateExtrusionHeight(extrusionValue, pathLength);
+
+        // todo: remove later - for non pneumatic extrusions
+        if (isNaN(tubeRadius))
+          tubeRadius = 0.2;
+
         shape.scale.x = tubeRadius;
         shape.scale.y = tubeRadius;
         shape.scale.z = tubeRadius;
