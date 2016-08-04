@@ -85,7 +85,10 @@ RangeUtil.unionRangeSets = function(set1, set2) {
         return element != null;
     })
     .sort(function(a, b) {
-        return a.start - b.start;
+        if (a.start === b.start)
+            return a.end - b.end;
+        else
+            return a.start - b.start;
     })
     .reduce(function(array, element) {
         array.push(element.start, element.end);

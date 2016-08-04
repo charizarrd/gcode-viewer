@@ -262,17 +262,26 @@ VisualPath.prototype.updateVisibleTubeRanges = function() {
   var visibleExtrusionRanges = [];
   for (var i = this.visibleLayerRangeStart; i <=  this.visibleLayerRangeEnd; i++) {
     var layer = this.layers[i];
+    var tubeFaceRanges = [];
+    layer.extrusionPointIndexRanges.forEach(function(pointIndex) {
+      tubeFaceRanges.push(self.extrusionTubeFacesIndex[pointIndex/3]);
+    });
+
     if (visibleExtrusionRanges.length > 0)
-      visibleExtrusionRanges = RangeUtil.unionRangeSets(visibleExtrusionRanges, layer.extrusionPointIndexRanges);        
+      visibleExtrusionRanges = RangeUtil.unionRangeSets(visibleExtrusionRanges, tubeFaceRanges);        
     else
-      visibleExtrusionRanges = layer.extrusionPointIndexRanges;
+      visibleExtrusionRanges = tubeFaceRanges;
+
+
+    console.log(tubeFaceRanges);
+    console.log(visibleExtrusionRanges);
   }
 
-  this.visibleTubeRanges = [];
+  this.visibleTubeRanges = visibleExtrusionRanges;
 
-  visibleExtrusionRanges.forEach(function(pointIndex) {
-    self.visibleTubeRanges.push(self.extrusionTubeFacesIndex[pointIndex/3]);
-  });
+  // visibleExtrusionRanges.forEach(function(pointIndex) {
+  //   self.visibleTubeRanges.push();
+  // });
 
   var geo = self.extrusionMesh.geometry;
   geo.clearGroups();
@@ -564,7 +573,7 @@ VisualPath.prototype.generateTubeGeometry = function() {
         var extrusionValue = self.extrusionValues[pointIndex/3];
         var pathLength = lastPoint.distanceTo(currentPoint);
         var tubeRadius = self.calculateExtrusionHeight(extrusionValue, pathLength);
-        
+
         // todo: remove later - for non pneumatic extrusions
         if (isNaN(tubeRadius))
           tubeRadius = 0.2;

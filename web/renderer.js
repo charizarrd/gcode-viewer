@@ -170,6 +170,19 @@ function createScene(container) {
 
             if ((target >= start) && (target < end)) {
               var geo = mesh.geometry;
+
+              // remove any previously highlighted extrusions
+              var index = null;
+              for (var j = geo.groups.length-1; j >= 0; j--) {
+                if (geo.groups[j].materialIndex === 1) {
+                  index = j;
+                  break;
+                }
+              }
+
+              if (index !== null)
+                geo.groups.splice(index, 1);
+
               geo.addGroup(start, end - start, 1);
 
               // relevant gcode command
