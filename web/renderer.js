@@ -171,6 +171,9 @@ function createScene(container) {
             if ((target >= start) && (target < end)) {
               var geo = mesh.geometry;
               geo.addGroup(start, end - start, 1);
+
+              // relevant gcode command
+              console.log(visualPath.commands[i*3]);
               break;
             }
             start = end;

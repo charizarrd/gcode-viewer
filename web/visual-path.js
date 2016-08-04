@@ -66,7 +66,8 @@ function VisualPath() {
 
   //Not sure if this first point should actually be included or not
   //Also, should check whether it's a travel or extrusion
-  this.extendPathPolyline(this.lastPoint, this.extrudedLastTime);
+  //charz: pretty sure we don't need this but can discuss
+  // this.extendPathPolyline(this.lastPoint, this.extrudedLastTime);
 };
 
 VisualPath.prototype.extendPathPolyline = function(newPoint, shouldExtrude, commandIndex) {
@@ -434,23 +435,23 @@ VisualPath.prototype.getVisibleExtrusionMesh = function() {
 
     geo.computeVertexNormals();
 
-    var extrudeMat = new THREE.MeshBasicMaterial({
+    var extrudeMat = new THREE.MeshStandardMaterial({
       color: 0x00AAAA,
       // wireframe: true,
       // vertexColors: THREE.FaceColor,
-      // metalness: 0.5,
-      // roughness: 0.5
+      metalness: 0.5,
+      roughness: 0.5
     });
 
-    var redMat = new THREE.MeshBasicMaterial({
-      color: 0xFF0000,
+    var whiteMat = new THREE.MeshBasicMaterial({
+      color: 0xFFFFFF,
       // vertexColors: THREE.FaceColor,
       // metalness: 0.5,
       // roughness: 0.5
     });
 
     // mesh = new THREE.Mesh(geo, extrudeMat);
-    mesh = new THREE.Mesh(geo, new THREE.MultiMaterial([extrudeMat, redMat]));
+    mesh = new THREE.Mesh(geo, new THREE.MultiMaterial([extrudeMat, whiteMat]));
     this.extrusionMesh = mesh;
   }
 
