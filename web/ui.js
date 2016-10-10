@@ -11,6 +11,14 @@ var scene = null,
     guiParameters,
     stats;
 
+function about() {
+  $('#aboutModal').modal();
+}
+
+function openDialog() {
+  $('#openModal').modal();
+}
+
 
 var gr;
 
@@ -34,6 +42,8 @@ function onGCodeLoaded(gcode) {
   // catch(e) {
   //   // localstorage error - probably out of space
   // }
+
+  $('#openModal').modal('hide');
   if (object) {
     object.children.forEach(function(child) {
       if (child instanceof THREE.Line) {
@@ -81,10 +91,10 @@ $(function() {
   // }
 
   // Show 'About' dialog for first time visits.
-  // if (!localStorage.getItem(config.notFirstVisitKey)) {
-  //   localStorage.setItem(config.notFirstVisitKey, true);
-  //   setTimeout(about, 500);
-  // }
+  if (!localStorage.getItem(config.notFirstVisitKey)) {
+    localStorage.setItem(config.notFirstVisitKey, true);
+    setTimeout(about, 500);
+  }
 
   $('.gcode_examples a').on('click', function(event) {
     GCodeImporter.importPath($(this).attr('href'), onGCodeLoaded);

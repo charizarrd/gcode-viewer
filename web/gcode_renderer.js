@@ -49,7 +49,7 @@ function GCodeRenderer() {
   // index into buffergeometry float arrays
   this.vIndex = 0;
 
-  this.faces;
+  this.faces = [];
   this.fIndex = 0;
 
   // this geometry is only for movement
@@ -68,9 +68,6 @@ function GCodeRenderer() {
     min: { x: 100000, y: 100000, z: 100000 },
     max: { x:-100000, y:-100000, z:-100000 }
   };
-
-  // for filling in gaps b/t extrusions
-  this.lastNormal = null;
 
 };
 
@@ -96,18 +93,15 @@ GCodeRenderer.prototype.render = function(gcode) {
   this.extrudeVertices = this.extrudeGeo.attributes.position.array;
 
   this.extrudeGeo.addAttribute('color', new THREE.BufferAttribute(new Float32Array(60*l), 3));
-  this.extrudeColors = this.extrudeGeo.attributes.color.array;
-
-  this.extrudeGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(180*l), 1));
-  this.faces = this.extrudeGeo.getIndex().array;
+  this.extrudeColors = this.extrudeGeo.attributes.color.array
 
   console.log(l);
   // parsing
   for ( ; i < l; i++) {
     if ((i % 100000) == 0)
-      console.log(i, self.numVertices, self.fIndex);
+      console.log(i, self.numVertices);
 
-    // if (i > 200)
+    // if (i > 500000)
     //   break;
 
     words = self.parser.parseLine(lines[i]);    
@@ -143,15 +137,16 @@ GCodeRenderer.prototype.render = function(gcode) {
   // using Float32Array.from() always crashes the browser so copy over
   // array piece by piece...
   var l = self.fIndex;
-  // var faces = new Uint32Array(l*3);
+  var faces = new Uint32Array(l*3);
 
   var index = 0;
   var range = 1000000;
-  // while (self.faces.length > 0) {
-  //   faces.set(self.faces.splice(0, range), index);
-  //   index += range;
-  // }
+  while (self.faces.length > 0) {
+    faces.set(self.faces.splice(0, range), index);
+    index += range;
+  }
 
+  this.extrudeGeo.setIndex(new THREE.BufferAttribute(faces, 1));
   this.extrudeGeo.computeVertexNormals();
 
   var extrusions = new THREE.Mesh(this.extrudeGeo, new THREE.MultiMaterial([this.extrudeMat]));
@@ -348,22 +343,9 @@ GCodeRenderer.prototype.getVertices = function(code) {
   if (path.getLength() !== 0) {
     if (extrude) {
       if (self.toolNum === 0) {
-        // tubeRadius = 0.2;
-
-
-        // TODO: parse gcode to get these values
-        var extrusionWidth = 0.25;
-        var filamentDiameter = 1.75;
-        var volume = newLine.e * Math.PI * Math.pow((filamentDiameter/2), 2);
-        var crossArea = volume / path.getLength();
-        var a = (Math.PI/4 - 1);
-        var b = extrusionWidth;
-        var c = -crossArea;
-        var root1 = (-b + Math.sqrt(Math.pow(b,2) - 4*a*c)) / (2*a);
-        var root2 = (-b - Math.sqrt(Math.pow(b,2) - 4*a*c)) / (2*a);
-        tubeRadius = Math.min(root1, root2);
-        // console.log(root1, root2);
-
+        // tubeRadius = 0.35;
+        var magicMultiplier = 8;
+        tubeRadius = newLine.e / path.getLength() * magicMultiplier;
       } else {
         tubeRadius = 0.25;
       }
@@ -375,9 +357,6 @@ GCodeRenderer.prototype.getVertices = function(code) {
           self.shape.position.copy( path.getPointAt(counter) );
 
           tangent = path.getTangentAt(counter).normalize();
-
-          // console.log(counter, path.getPointAt(counter), tangent);
-
 
           axis.crossVectors(self.up, tangent).normalize();
 
@@ -410,79 +389,21 @@ GCodeRenderer.prototype.getVertices = function(code) {
             if (counter > 0) {
               var j = (i+1) % l;
 
-              self.faces[self.fIndex] = self.numVertices + j;
-              self.faces[self.fIndex+1] = self.numVertices + i;
-              self.faces[self.fIndex+2] = self.numVertices - l + i;
+              self.faces.push(self.numVertices + j);
+              self.faces.push(self.numVertices + i);
+              self.faces.push(self.numVertices - l + i);
 
-              self.faces[self.fIndex+3] = self.numVertices + j;
-              self.faces[self.fIndex+4] = self.numVertices - l + i;
-              self.faces[self.fIndex+5] = self.numVertices - l + j;
+              self.faces.push(self.numVertices + j);
+              self.faces.push(self.numVertices - l + i);
+              self.faces.push(self.numVertices - l + j)
 
               self.fIndex += 6;
             }
 
           }
 
-          if ((self.lastNormal !== null) && (counter === 0)) {
-            // console.log('hi?');
-            var newIndex = self.numVertices;
-            var oldIndex = (newIndex - l)*3;
-
-            var dir = self.lastNormal.clone().add(tangent).normalize();
-            var epsilon = 0.1;
-            var max_dot = 0;
-            var offset;
-            // console.log(self.lastNormal, tangent, dir);
-
-            for (var i = 0; i < l; i++) {
-              var v1 = verts[i];
-              // console.log(i);
-              for (var j = 0; j < l*3; j+= 3) {
-                var v2 = new THREE.Vector3();
-                v2.x = self.extrudeVertices[oldIndex + j];
-                v2.y = self.extrudeVertices[oldIndex + j + 1];
-                v2.z = self.extrudeVertices[oldIndex + j + 2];
-                var temp = v2.sub(v1).normalize();
-                var val = Math.abs(temp.dot(dir));
-                // console.log(temp, temp.dot(dir))
-                
-                if (val > max_dot) {
-                  max_dot = val;
-                  offset = j/3 - i;
-                }
-              }
-            }
-            // console.log(offset);
-            // offset = 2;
-            if (offset !== undefined) {
-              if (offset < 0)
-                offset += l;
-
-              var newVertIndex = newIndex;
-              var oldVertIndex = oldIndex/3;
-
-              for (var i = 0; i < l; i++) {
-                var j = (i+1) % l;
-                var k = (i + offset) % l;
-                var m = (i + offset + 1) % l;
-
-                self.faces[self.fIndex] = newVertIndex + j;
-                self.faces[self.fIndex+1] = newVertIndex + i;
-                self.faces[self.fIndex+2] = oldVertIndex + k;
-
-                self.faces[self.fIndex+3] = newVertIndex + j;
-                self.faces[self.fIndex+4] = oldVertIndex + k;
-                self.faces[self.fIndex+5] = oldVertIndex + m;
-
-
-                self.fIndex += 6;
-              }
-            }
-          }
-
           self.numVertices += l;
           counter += 1/total;
-          self.lastNormal = tangent.clone();
       }
 
       // check for new layer
@@ -500,8 +421,6 @@ GCodeRenderer.prototype.getVertices = function(code) {
         verts.push(p.z);
         self.mIndex += 1;
       });
-
-      self.lastNormal = null;
     }
   }
 
@@ -577,6 +496,9 @@ GCodeRenderer.prototype.setLayer = function(layerIndex) {
     startIndex = this.gcodes[this.layers[layerIndex-1]].mIndex;
     this.motionGeo.setDrawRange(startIndex, endIndex - startIndex);   
   }
+
+  // this.setIndex(index);
+
 };
 
 
